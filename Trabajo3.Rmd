@@ -18,11 +18,25 @@ output: pdf_document
     summary(sahd)
     
     train <- sample(nrow(sahd), 0.7*nrow(sahd))
-    sahd.train <- sahd[train,]
-    sahd.test <- sahd[-train,]
+    sahd_train <- sahd[train,-ncol(sahd)]
+    sahd_label <- sahd[, ncol(sahd)]
+    sahd_test <- sahd[-train,-ncol(sahd)]
+    sahd_label_test <- sahd[-train, ncol(sahd)
 
     attach(sahd)
-    pairs(~ shp + tobacco + ldl + adiposity + famhist + typea + obesity + alcohol + age + chd, data= sahd)
+    pairs(~ sbp + tobacco + ldl + adiposity + famhist + typea + obesity + alcohol + age, data= sahd, col = chd+3)
+
+    #Regresión logística
+    ml1 = glm(sahd_label ~ tobacco + ldl,family = binomial(logit), data = sahd[,-ncol(sahd)], subset=train)
+    summary(ml1)
     
+    #Cálculo de probabilidades
+    prob_train_ml1 = predict(ml1, type = "response")
+    prob_test_ml1 = predict(ml1, sahd_test, type="response")
+    
+    #Veamos cómo predice 
+    pred_test_ml1 = rep(0, length(prob_test_ml1)) # predicciones por defecto 0
+    pred_test_ml1[prob_test_ml1 >=0.5] = 1 # >= 0.5 clase 1
+    table(pred_test_ml1, sahd_test) 
     
 ```
