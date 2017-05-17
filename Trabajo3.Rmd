@@ -1,0 +1,28 @@
+---
+title: "Trabajo 3"
+author: "Nuria Rodríguez Barroso"
+date: "17 de mayo de 2017"
+output: pdf_document
+---
+
+```{r echo = FALSE}
+    #Fijamos la semilla para obtener siempre los mismos resultados
+    set.seed(123456789)
+```
+
+#Clasificación.
+
+```{r echo = FALSE}
+  
+    sahd <- read.table("./data/SAHD", sep=",",head=T, row.names = 1)
+    summary(sahd)
+    
+    train <- sample(nrow(sahd), 0.7*nrow(sahd))
+    sahd.train <- sahd[train,]
+    sahd.test <- sahd[-train,]
+
+    attach(sahd)
+    pairs(~ shp + tobacco + ldl + adiposity + famhist + typea + obesity + alcohol + age + chd, data= sahd)
+    
+    
+```
