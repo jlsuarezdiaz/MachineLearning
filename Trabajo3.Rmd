@@ -17,17 +17,17 @@ output: pdf_document
     sahd <- read.table("./data/SAHD", sep=",",head=T, row.names = 1)
     summary(sahd)
     
+    
     train <- sample(nrow(sahd), 0.7*nrow(sahd))
     sahd_train <- sahd[train,-ncol(sahd)]
-    sahd_label <- sahd[, ncol(sahd)]
     sahd_test <- sahd[-train,-ncol(sahd)]
-    sahd_label_test <- sahd[-train, ncol(sahd)
+    sahd_label_test <- sahd[-train, ncol(sahd)]
 
     attach(sahd)
     pairs(~ sbp + tobacco + ldl + adiposity + famhist + typea + obesity + alcohol + age, data= sahd, col = chd+3)
 
-    #Regresión logística
-    ml1 = glm(sahd_label ~ tobacco + ldl,family = binomial(logit), data = sahd[,-ncol(sahd)], subset=train)
+    #Regresión logística?
+    ml1 = glm(chd ~ .,family = binomial(logit), data = sahd[,-ncol(sahd)], subset=train)
     summary(ml1)
     
     #Cálculo de probabilidades
@@ -37,6 +37,9 @@ output: pdf_document
     #Veamos cómo predice 
     pred_test_ml1 = rep(0, length(prob_test_ml1)) # predicciones por defecto 0
     pred_test_ml1[prob_test_ml1 >=0.5] = 1 # >= 0.5 clase 1
-    table(pred_test_ml1, sahd_test) 
+    table(pred_test_ml1, sahd_label_test) 
     
+    eval = mean(pred_test_ml1 != sahd_label_test)
+    cat("Eval con el modelo LR "); print(ml1$call)
+    print(eval)
 ```
