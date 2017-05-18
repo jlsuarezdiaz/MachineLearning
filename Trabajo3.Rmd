@@ -14,24 +14,82 @@ output: pdf_document
 
 ```{r echo = FALSE}
   
+    #PREPARAMIENTO DE LOS DATOS
     sahd <- read.table("./data/SAHD", sep=",",head=T, row.names = 1)
     summary(sahd)
     
+        
+    #PREPROCESAMIENTO DE LOS DATOS
+
+    #Paso 1: Quitamos las variables cualitativas (el programa no sabe bien cómo tratarlas)
+    #La única variable cualitativa es famhist = {present, absent}
+    sahd <- sahd[, -5]
     
+    #Paso 2: No hay columnas que contengan status ni redundantes
+
+    #Paso 3: Eliminación de variables con varianza 0 o muy próximas (importante para métodos sensibles a distancias)
+    #library("e1071")
+    
+    #skewness -> medida de la asimetría de los datos
+    skewness(sahd$sbp)
+    skewness(sahd$tobacco)
+    skewness(sahd$ldl)
+    skewness(sahd$adiposity)
+    skewness(sahd$typea)
+    skewness(sahd$obesity)
+    skewness(sahd$alcohol)
+    skewness(sahd$age)
+    
+    #Los datos más asimétricos son -> tobacco y alcohol
+    hist(sahd$tobacco)
+    hist(sahd$alcohol)
+    
+    #Ordenamos las columnas por asimetria
+    sahd_asymmetry <- apply(sahd, 2, skewness)
+    sort(abs(sahd_asymmetry), decreasing = T)
+    
+    #Una vez hemos hallado los datos con asimetría alta, aplicamos la transformación, para ello
+    #library("caret")
+    
+    #Lo aplico a los que tienen skewness > 1 ?????
+    #BoxCoxTrans no hace la transformación, devuelve el parámetro
+    BoxCoxTrans(sahd$alcohol) #No se aplica transformación pues no se ha encontrado el parámetro
+    BoxCoxTrans(sahd$tobacco) #No se aplica transformación pues no se ha encontrado el parámetro
+    ldl_trans <- BoxCoxTrans(sahd$ldl) #Se aplica transformación con lambda = 0
+    sbp_trans <- BoxCoxTrans(sahd$sbp) #Lambda estimado -1.8
+    
+    #Aplicamos la transformación a los que han devuelto un lambda
+    predict(ldl_trans, head(sahd$ldl))
+    predict(sbp_trans, head(sahd$sbp))
+    
+    #Dibujamos el histograma de los datos transformados 
+    hist(predict(ldl_trans, head(sahd$ldl)))
+    hist(predict(sbp_trans, head(sahd$sbp))) # Los datos son más simétricos
+    
+    #Qué hacemos con los que no hemos podido modificar?? Los eliminamos? <------- JUANLU LEER ESTO!!!!!!
+    #Cómo sustituímos ldl y sbp por los modificados?
+    sahd$ldl <- predict(ldl_trans, head(sahd$ldl))
+    
+    #Paso 4: Eliminación de atributos (en nuestro modelo no hay demasiados (creo))
+    
+    
+    #Paso 5: Preparación de conjunto de train/test, y de las etiquetas train/test
     train <- sample(nrow(sahd), 0.7*nrow(sahd))
     sahd_train <- sahd[train,-ncol(sahd)]
     sahd_test <- sahd[-train,-ncol(sahd)]
     sahd_label_test <- sahd[-train, ncol(sahd)]
+    sahd_label_train <- sahd[train, ncol(sahd)]
 
     attach(sahd)
-    pairs(~ sbp + tobacco + ldl + adiposity + famhist + typea + obesity + alcohol + age, data= sahd, col = chd+3)
+    pairs(~ sbp + tobacco + ldl + adiposity + typea + obesity + alcohol + age, data= sahd, col = chd+3)
 
-    #Regresión logística?
+    #REGRESION LOGISTICA
+    #Primer modelo lineal -> Binomial
     ml1 = glm(chd ~ .,family = binomial(logit), data = sahd[,-ncol(sahd)], subset=train)
     summary(ml1)
     
     #Cálculo de probabilidades
-    prob_train_ml1 = predict(ml1, type = "response")
+    prob_train_ml1 = predict(ml1, type = "response") #no tenemos que introducirle el train porque recuerda
     prob_test_ml1 = predict(ml1, sahd_test, type="response")
     
     #Veamos cómo predice 
@@ -39,7 +97,78 @@ output: pdf_document
     pred_test_ml1[prob_test_ml1 >=0.5] = 1 # >= 0.5 clase 1
     table(pred_test_ml1, sahd_label_test) 
     
-    eval = mean(pred_test_ml1 != sahd_label_test)
+    #obtenemos el E_test
+    eval_ml1 = mean(pred_test_ml1 != sahd_label_test)
     cat("Eval con el modelo LR "); print(ml1$call)
-    print(eval)
+    print(eval_ml1)
+    
+    #obtenemos el E_in
+    pred_train_ml1 = rep(0, length(prob_train_ml1)) #predicciones por defecto 0
+    pred_train_ml1[prob_train_ml1 >= 0.5] = 1
+    table(pred_train_ml1, sahd_label_train)
+    
+    ein_ml1 = mean(pred_train_ml1 != sahd_label_train)
+    cat("E_in con el modelo LR "); print(ml1$call)
+    print(ein_ml1)
+    
+    #El E_in sale mayor que el E_out ?¿?¿?¿?¿
+    
+    #Segundo modelo lineal -> gaussiana
+    #Con todos los atributos
+    ml2 = glm(chd ~ .,family = gaussian(identity), data = sahd[,-ncol(sahd)], subset=train)
+    summary(ml2)
+    
+    #Cálculo de probabilidades
+    prob_train_ml2 = predict(ml2, type = "response") #no tenemos que introducirle el train porque recuerda
+    prob_test_ml2 = predict(ml2, sahd_test, type="response")
+    
+    #Veamos cómo predice 
+    pred_test_ml2 = rep(0, length(prob_test_ml2)) # predicciones por defecto 0
+    pred_test_ml2[prob_test_ml2 >=0.5] = 1 # >= 0.5 clase 1
+    table(pred_test_ml2, sahd_label_test) 
+    
+    #obtenemos el E_test
+    eval_ml2 = mean(pred_test_ml2 != sahd_label_test)
+    cat("Eval con el modelo LR "); print(ml2$call)
+    print(eval_ml2)
+    
+    #obtenemos el E_in
+    pred_train_ml2 = rep(0, length(prob_train_ml2)) #predicciones por defecto 0
+    pred_train_ml2[prob_train_ml2 >= 0.5] = 1
+    table(pred_train_ml2, sahd_label_train)
+    
+    ein_ml2 = mean(pred_train_ml2 != sahd_label_train)
+    cat("E_in con el modelo LR "); print(ml2$call)
+    print(ein_ml2)
+    
+    
+    #La Gamam no se puede usar por haber valores negativos  
+    
+    #Tercer modelo lineal -> 
+    ml3 = glm(chd ~ .,family = poisson(log), data = sahd[,-ncol(sahd)], subset=train)
+    summary(ml3)
+    
+    #Cálculo de probabilidades
+    prob_train_ml3 = predict(ml3, type = "response") #no tenemos que introducirle el train porque recuerda
+    prob_test_ml3 = predict(ml3, sahd_test, type="response")
+    
+    #Veamos cómo predice 
+    pred_test_ml3 = rep(0, length(prob_test_ml3)) # predicciones por defecto 0
+    pred_test_ml3[prob_test_ml3 >=0.5] = 1 # >= 0.5 clase 1
+    table(pred_test_ml3, sahd_label_test) 
+    
+    #obtenemos el E_test
+    eval_ml3 = mean(pred_test_ml3 != sahd_label_test)
+    cat("Eval con el modelo LR "); print(ml3$call)
+    print(eval_ml3)
+    
+    #obtenemos el E_in
+    pred_train_ml3 = rep(0, length(prob_train_ml3)) #predicciones por defecto 0
+    pred_train_ml3[prob_train_ml3 >= 0.5] = 1
+    table(pred_train_ml3, sahd_label_train)
+    
+    ein_ml3 = mean(pred_train_ml3 != sahd_label_train)
+    cat("E_in con el modelo LR "); print(ml3$call)
+    print(ein_ml3)
+    
 ```
