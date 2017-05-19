@@ -18,7 +18,8 @@ output: pdf_document
     sahd <- read.table("./data/SAHD", sep=",",head=T, row.names = 1)
     summary(sahd)
     
-        
+    
+
     #PREPROCESAMIENTO DE LOS DATOS
 
     #Paso 1: Modificamos las variables cualitativas (el programa no sabe bien cómo tratarlas)
@@ -28,50 +29,56 @@ output: pdf_document
     colnames(sahd) <- c('sbp', 'tobacco', 'ldl', 'adiposity', 'present_famhist', 'typea', 'obesity', 'alcohol', 'age', 'chd', 'absent_famhist')
     sahd <- sahd[c('sbp', 'tobacco', 'ldl', 'adiposity', 'present_famhist', 'absent_famhist', 'typea', 'obesity', 'alcohol', 'age', 'chd')]
     
+    attach(sahd)
+    pairs(~ sbp + tobacco + ldl + adiposity + present_famhist + absent_famhist +typea + obesity + alcohol + age, data= sahd, col = chd+3)
+    
     #Paso 2: No hay columnas que contengan status ni redundantes
 
     #Paso 3: Eliminación de variables con varianza 0 o muy próximas (importante para métodos sensibles a distancias)
-    #library("e1071")
+    library("e1071")
     
     #skewness -> medida de la asimetría de los datos
-    skewness(sahd$sbp)
-    skewness(sahd$tobacco)
-    skewness(sahd$ldl)
-    skewness(sahd$adiposity)
-    skewness(sahd$typea)
-    skewness(sahd$obesity)
-    skewness(sahd$alcohol)
-    skewness(sahd$age)
+    skewness(sbp)
+    skewness(tobacco)
+    skewness(ldl)
+    skewness(adiposity)
+    skewness(typea)
+    skewness(obesity)
+    skewness(alcohol)
+    skewness(age)
+    skewness(present_famhist)
+    skewness(absent_famhist)
     
     #Los datos más asimétricos son -> tobacco y alcohol
-    hist(sahd$tobacco)
-    hist(sahd$alcohol)
+    hist(tobacco)
+    hist(alcohol)
     
     #Ordenamos las columnas por asimetria
     sahd_asymmetry <- apply(sahd, 2, skewness)
     sort(abs(sahd_asymmetry), decreasing = T)
     
     #Una vez hemos hallado los datos con asimetría alta, aplicamos la transformación, para ello
-    #library("caret")
+    library("caret")
     
     #Lo aplico a los que tienen skewness > 1 ?????
     #BoxCoxTrans no hace la transformación, devuelve el parámetro
-    BoxCoxTrans(sahd$alcohol) #No se aplica transformación pues no se ha encontrado el parámetro
-    BoxCoxTrans(sahd$tobacco) #No se aplica transformación pues no se ha encontrado el parámetro
-    ldl_trans <- BoxCoxTrans(sahd$ldl) #Se aplica transformación con lambda = 0
-    sbp_trans <- BoxCoxTrans(sahd$sbp) #Lambda estimado -1.8
+    BoxCoxTrans(alcohol) #No se aplica transformación pues no se ha encontrado el parámetro
+    BoxCoxTrans(tobacco) #No se aplica transformación pues no se ha encontrado el parámetro
+    ldl_trans <- BoxCoxTrans(ldl) #Se aplica transformación con lambda = 0
+    sbp_trans <- BoxCoxTrans(sbp) #Lambda estimado -1.8
     
     #Aplicamos la transformación a los que han devuelto un lambda
-    predict(ldl_trans, head(sahd$ldl))
-    predict(sbp_trans, head(sahd$sbp))
+    #predict(ldl_trans, ldl) #Aplicamos sobre solo los 10 primeros? no entiendop
+    #predict(sbp_trans, sbp)
     
     #Dibujamos el histograma de los datos transformados 
-    hist(predict(ldl_trans, head(sahd$ldl)))
-    hist(predict(sbp_trans, head(sahd$sbp))) # Los datos son más simétricos
+    #hist(predict(ldl_trans, head(ldl)))
+    #hist(predict(sbp_trans, head(sbp))) 
     
-    #Qué hacemos con los que no hemos podido modificar?? Los eliminamos? <------- JUANLU LEER ESTO!!!!!!
-    #Cómo sustituímos ldl y sbp por los modificados?
-    sahd$ldl <- predict(ldl_trans, head(sahd$ldl))
+    #Qué hacemos con los que no hemos podido modificar??  <-------------------------- JUANLU
+    #Cómo sustituímos ldl y sbp por los modificados
+    ldl <- predict(ldl_trans, ldl)
+    sbp <- predict(sbp_trans, sbp)
     
     #Paso 4: Eliminación de atributos (en nuestro modelo no hay demasiados (creo))
     
@@ -83,8 +90,6 @@ output: pdf_document
     sahd_label_test <- sahd[-train, ncol(sahd)]
     sahd_label_train <- sahd[train, ncol(sahd)]
 
-    attach(sahd)
-    pairs(~ sbp + tobacco + ldl + adiposity + typea + obesity + alcohol + age, data= sahd, col = chd+3)
 
     #REGRESION LOGISTICA
     #Primer modelo lineal -> Binomial
