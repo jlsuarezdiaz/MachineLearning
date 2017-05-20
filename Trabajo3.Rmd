@@ -18,16 +18,13 @@ output: pdf_document
     sahd <- read.table("./data/SAHD", sep=",",head=T, row.names = 1)
     summary(sahd)
     
-    
 
     #PREPROCESAMIENTO DE LOS DATOS
 
     #Paso 1: Modificamos las variables cualitativas (el programa no sabe bien cómo tratarlas)
     #La única variable cualitativa es famhist = {present, absent}
     sahd[,5] <- ifelse(sahd[,5]=='Present',1,0)
-    #sahd[,11] <- ifelse(sahd[,5]==1, 0,1) # Tal vez esta sea redundante, porque famhist solo toma dos valores
-    colnames(sahd) <- c('sbp', 'tobacco', 'ldl', 'adiposity', 'present_famhist', 'typea', 'obesity', 'alcohol', 'age', 'chd')#, 'absent_famhist')
-    #sahd <- sahd[c('sbp', 'tobacco', 'ldl', 'adiposity', 'present_famhist', 'absent_famhist', 'typea', 'obesity', 'alcohol', 'age', 'chd')]
+    colnames(sahd) <- c('sbp', 'tobacco', 'ldl', 'adiposity', 'present_famhist', 'typea', 'obesity', 'alcohol', 'age', 'chd')
     
     attach(sahd)
     pairs(~ sbp + tobacco + ldl + adiposity + present_famhist +typea + obesity + alcohol + age, data= sahd, col = chd+3)
@@ -50,8 +47,7 @@ output: pdf_document
     skewness(alcohol)
     skewness(age)
     skewness(present_famhist)
-    #skewness(absent_famhist)
-    
+
     #Los datos más asimétricos son -> tobacco y alcohol
     hist(tobacco)
     hist(alcohol)
@@ -68,7 +64,7 @@ output: pdf_document
     #Una vez hemos hallado los datos con asimetría alta, aplicamos la transformación, para ello
     library("caret")
     
-    #Lo aplico a los que tienen skewness > 1 ?????
+    #Lo aplico a los que tienen skewness > 1 
     #BoxCoxTrans no hace la transformación, devuelve el parámetro
     BoxCoxTrans(alcohol) #No se aplica transformación pues no se ha encontrado el parámetro
     BoxCoxTrans(tobacco) #No se aplica transformación pues no se ha encontrado el parámetro
@@ -113,8 +109,7 @@ output: pdf_document
 
 ```{r, echo=F, warning=F}
     
-    #Qué hacemos con los que no hemos podido modificar??  <-------------------------- JUANLU
-    #Cómo sustituímos ldl y sbp por los modificados
+    #Sustituímos los datos que tenían gran asimetría por los transformados
     ldl <- t_ldl
     sbp <- t_sbp
     alcohol <- t_alcohol
@@ -123,12 +118,16 @@ output: pdf_document
 ```
 
 ```{r, echo=F, warning=F}
-    #Paso 4: Eliminación de atributos (en nuestro modelo no hay demasiados (creo))
+    #Paso 4: Eliminación de atributos 
+    #center=TRUE -> indicamos que queremos que las variables sean desplazadas de forma que estén centradas en 0.
+    #scale=TRUE -> escalar las variables para que tengan varianza 1 antes del análisis.
     pcaObject <- prcomp(sahd,center=TRUE,scale=TRUE)
 
     # Centros utilizados (?) no lo entiendo  muy bien
-    head(pcaObject$center)
-    
+    #head(pcaObject$center)
+    #Si pones el head te saca solo los 10 primeros
+    pcaObject$center
+
     #Peso en porcentajes de la varianza de cada atributo
     porcentVariance = pcaObject$sd^2/sum(pcaObject$sd^2)*100
     porcentVariance
@@ -157,13 +156,11 @@ ObjetoTrans = preProcess(sahd[,names(sahd)!="chd"],method = c("BoxCox","center",
 # 0.9 -> 7 atributos
 # 0.8 -> 6 atributos
 
-
+#THRES ->  cota del porcentaje de varianza acumulativa retenido por PCA.
 ObjetoTrans
 
 sahdTrans <- predict(ObjetoTrans,sahd)
 dim(sahdTrans)
-
-
 
 ```
 
@@ -173,7 +170,7 @@ dim(sahdTrans)
   #Paso 5: Preparación de conjunto de train/test, y de las etiquetas train/test
   sahd.data <- sahdTrans[,-1]
   sahd.label <- sahdTrans[,1]
-  # sahd.label[sahd.label==0] <- -1  ## (?) Sigue haciendo falta poner labels a -1 y +1 ?
+  #sahd.label[sahd.label==0] <- -1 
   
   train <- sample(nrow(sahd),0.7*nrow(sahd))
   sahd.train <- sahd.data[train,]
@@ -188,12 +185,10 @@ dim(sahdTrans)
 
 ```{r, echo=F,warning=F}
 # REGRESIÓN LOGÍSTICA
-
 ml1 <- glm(chd ~ ., family = binomial(logit), data = sahd.data, subset=train)
 summary(ml1)
 
 #Cálculo de probabilidades
-
 ml1.prob_train = predict(ml1, type = "response") #no tenemos que introducirle el train porque recuerda
 ml1.prob_test = predict(ml1, sahd.test, type="response")
 
@@ -224,12 +219,10 @@ print(ml1.Ein)
 
 ```{r, echo=F,warning=F}
 # GAUSSIANA
-
 ml2 <- glm(chd ~ ., family = gaussian(identity), data = sahd.data, subset=train)
 summary(ml2)
 
 #Cálculo de probabilidades
-
 ml2.prob_train = predict(ml2, type = "response") #no tenemos que introducirle el train porque recuerda
 ml2.prob_test = predict(ml2, sahd.test, type="response")
 
@@ -257,6 +250,43 @@ print(ml2.Ein)
 
 ```
 
+```{r, echo=F,warning=F}
+# POISSON
+ml3 <- glm(chd ~ ., family = poisson(log), data = sahd.data, subset=train)
+summary(ml3)
+
+#Cálculo de probabilidades
+ml3.prob_train = predict(ml3, type = "response") #no tenemos que introducirle el train porque recuerda
+ml3.prob_test = predict(ml3, sahd.test, type="response")
+
+# Etest
+ml3.pred_test = rep(0, length(ml3.prob_test)) # predicciones por defecto 0
+ml3.pred_test[ml3.prob_test >=0.5] = 1 # >= 0.5 clase 1
+
+table(ml3.pred_test, lsahd.test) 
+
+ml3.Etest = mean(ml3.pred_test != lsahd.test)
+cat("Etest con el modelo Gaussiano: "); 
+print(ml3$call)
+print(ml3.Etest)
+    
+# Ein
+ml3.pred_train = rep(0, length(ml2.prob_train)) #predicciones por defecto 0
+ml3.pred_train[ml3.prob_train >= 0.5] = 1
+table(ml3.pred_train, lsahd.train)
+    
+ml3.Ein = mean(ml3.pred_train != lsahd.train)
+cat("Ein con el modelo de Poisson: "); 
+print(ml3$call)
+print(ml3.Ein)
+
+
+```
+```{r, echo=F,warning=F}
+# KNN
+
+
+```
 
 <!--
 ```{r, echo=F,warning=F}
@@ -397,7 +427,6 @@ print(ml2.Ein)
     #Ozone es lo que vamos a estimar
     attach(ozone.df)
     pairs(~ozone + vh + wind + humidity + temp + ibh + dpg + ibt + vis + doy, data= ozone.df)
-    
     mr1 = lm(ozone ~ vh + wind + humidity + temp + ibh + dpg + ibt + vis + doy, data=ozone.df, subset=train)
     
     #Cálulo del Ein
@@ -408,7 +437,6 @@ print(ml2.Ein)
     # Salen iguales Ein y Ein2, asi que perfe
     
     #Cálculo del Etest
-
     mr1.pred_test = predict(mr1, ozone.test, type="response")
     mr1.Etest <- mean((mr1.pred_test-lozone.test)^2)
     
@@ -438,9 +466,7 @@ mr2 = lm(ozone ~ I(vh^2) + temp + I(dpg^2) + I(ibt^2) + I(doy^2), data=ozone.df,
 #Cálulo del Ein
     mr2.Ein <- mean(mr2$residuals^2)
     
-    
     #Cálculo del Etest
-
     mr2.pred_test = predict(mr2, ozone.test, type="response")
     mr2.Etest <- mean((mr2.pred_test-lozone.test)^2)
     
@@ -463,7 +489,6 @@ for(j in 2:ncol(ozone.df)){
     dd[i-1,j-1] <- (ddm[i,2]-ddm[i-1,2])/(ddm[i,1]-ddm[i-1,1])
   }
 }
-
 
 
 ```
