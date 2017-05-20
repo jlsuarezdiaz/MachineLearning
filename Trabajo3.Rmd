@@ -1,7 +1,7 @@
 ---
 title: "Trabajo 3"
 author: "Nuria Rodríguez Barroso"
-date: "17 de mayo de 2017"
+date: "`r format(Sys.time(), '%d de %B de %Y')`"
 output: pdf_document
 ---
 
@@ -12,7 +12,7 @@ output: pdf_document
 
 #Clasificación.
 
-```{r echo = FALSE}
+```{r echo = FALSE, warning=FALSE}
   
     #PREPARACIÓN DE LOS DATOS
     sahd <- read.table("./data/SAHD", sep=",",head=T, row.names = 1)
@@ -25,12 +25,15 @@ output: pdf_document
     #Paso 1: Modificamos las variables cualitativas (el programa no sabe bien cómo tratarlas)
     #La única variable cualitativa es famhist = {present, absent}
     sahd[,5] <- ifelse(sahd[,5]=='Present',1,0)
-    sahd[,11] <- ifelse(sahd[,5]==1, 0,1)
-    colnames(sahd) <- c('sbp', 'tobacco', 'ldl', 'adiposity', 'present_famhist', 'typea', 'obesity', 'alcohol', 'age', 'chd', 'absent_famhist')
-    sahd <- sahd[c('sbp', 'tobacco', 'ldl', 'adiposity', 'present_famhist', 'absent_famhist', 'typea', 'obesity', 'alcohol', 'age', 'chd')]
+    #sahd[,11] <- ifelse(sahd[,5]==1, 0,1) # Tal vez esta sea redundante, porque famhist solo toma dos valores
+    colnames(sahd) <- c('sbp', 'tobacco', 'ldl', 'adiposity', 'present_famhist', 'typea', 'obesity', 'alcohol', 'age', 'chd')#, 'absent_famhist')
+    #sahd <- sahd[c('sbp', 'tobacco', 'ldl', 'adiposity', 'present_famhist', 'absent_famhist', 'typea', 'obesity', 'alcohol', 'age', 'chd')]
     
     attach(sahd)
-    pairs(~ sbp + tobacco + ldl + adiposity + present_famhist + absent_famhist +typea + obesity + alcohol + age, data= sahd, col = chd+3)
+    pairs(~ sbp + tobacco + ldl + adiposity + present_famhist +typea + obesity + alcohol + age, data= sahd, col = chd+3)
+```
+
+```{r echo = FALSE, warning=FALSE}
     
     #Paso 2: No hay columnas que contengan status ni redundantes
 
@@ -47,11 +50,16 @@ output: pdf_document
     skewness(alcohol)
     skewness(age)
     skewness(present_famhist)
-    skewness(absent_famhist)
+    #skewness(absent_famhist)
     
     #Los datos más asimétricos son -> tobacco y alcohol
     hist(tobacco)
     hist(alcohol)
+    
+```
+
+
+```{r, echo=F,warning=F}
     
     #Ordenamos las columnas por asimetria
     sahd_asymmetry <- apply(sahd, 2, skewness)
@@ -67,28 +75,109 @@ output: pdf_document
     ldl_trans <- BoxCoxTrans(ldl) #Se aplica transformación con lambda = 0
     sbp_trans <- BoxCoxTrans(sbp) #Lambda estimado -1.8
     
+    #Transformamos los datos para los que no se ha encontrado lambda añadiendo una constante
+    correction <- 1
+    c_alcohol <- alcohol + min(alcohol)+correction
+    c_tobacco <- tobacco + min(tobacco)+correction
+    alcohol_trans <- BoxCoxTrans(c_alcohol)
+    tobacco_trans <- BoxCoxTrans(c_tobacco)
+    
     #Aplicamos la transformación a los que han devuelto un lambda
     #predict(ldl_trans, ldl) #Aplicamos sobre solo los 10 primeros? no entiendop
     #predict(sbp_trans, sbp)
     
     #Dibujamos el histograma de los datos transformados 
-    #hist(predict(ldl_trans, head(ldl)))
+    #hist(predict(ldl_trans, ldl))
     #hist(predict(sbp_trans, head(sbp))) 
+    #hist(predict(alcohol_trans,alcohol))
+    
+    # Veamos cómo han cambiado los histogramas de los datos más asimétricos
+    t_alcohol <- predict(alcohol_trans,c_alcohol)
+    t_tobacco <- predict(tobacco_trans,c_tobacco)
+    t_ldl <- predict(ldl_trans, ldl)
+    t_sbp <- predict(sbp_trans, sbp)
+    
+    skewness(t_alcohol)
+    skewness(t_tobacco)
+    par(mfrow = c(1,2))
+    hist(alcohol)
+    hist(t_alcohol)
+    hist(tobacco)
+    hist(t_tobacco)
+    hist(ldl)
+    hist(t_ldl)
+    hist(sbp)
+    hist(t_sbp)
+    par(mfrow = c(1,1))
+```
+
+```{r, echo=F, warning=F}
     
     #Qué hacemos con los que no hemos podido modificar??  <-------------------------- JUANLU
     #Cómo sustituímos ldl y sbp por los modificados
-    ldl <- predict(ldl_trans, ldl)
-    sbp <- predict(sbp_trans, sbp)
+    ldl <- t_ldl
+    sbp <- t_sbp
+    alcohol <- t_alcohol
+    tobacco <- t_tobacco
     
+```
+
+```{r, echo=F, warning=F}
     #Paso 4: Eliminación de atributos (en nuestro modelo no hay demasiados (creo))
+    pcaObject <- prcomp(sahd,center=TRUE,scale=TRUE)
+
+    # Centros utilizados (?) no lo entiendo  muy bien
+    head(pcaObject$center)
     
+    #Peso en porcentajes de la varianza de cada atributo
+    porcentVariance = pcaObject$sd^2/sum(pcaObject$sd^2)*100
+    porcentVariance
+    sum(porcentVariance)
+    
+    # Datos tras rotar y escalar 
+    # Cada PCi no sé qué representa
+    pcaObject$x
+    
+    #Atributos junto a su varianza
+    plot(pcaObject,type="l")
+    
+    pcaObject$rotation
+    
+
+```
+
+```{r, echo=F, warning=F}
+# Realizamos todo el preprocesamiento directamente con preProcess (ejecutando solo el chunk de lectura de datos para hacer esto)
+
+ObjetoTrans = preProcess(sahd[,names(sahd)!="chd"],method = c("BoxCox","center","scale","pca"),thres = 0.8)
+
+# El parámetro thres indica cuántas componentes hacen falta para explicar la fracción thres de los datos
+# 1 -> 2 atributos ??????
+# 0.95 -> 8 atributos
+# 0.9 -> 7 atributos
+# 0.8 -> 6 atributos
+
+
+ObjetoTrans
+
+sahdTrans <- predict(ObjetoTrans,sahd)
+dim(sahdTrans)
+
+copy_sahd <- sahd
+sahd <- sahdTrans # (Para no cambiar el código siguiente)
+
+```
+
+
+
+```{r, echo=F,warning=F}
     
     #Paso 5: Preparación de conjunto de train/test, y de las etiquetas train/test
     train <- sample(nrow(sahd), 0.7*nrow(sahd))
     sahd_train <- sahd[train,-ncol(sahd)]
     sahd_test <- sahd[-train,-ncol(sahd)]
-    sahd_label_test <- sahd[-train, ncol(sahd)]
-    sahd_label_train <- sahd[train, ncol(sahd)]
+    sahd_label_test <- sahd[-train, 1]#ncol(sahd)]
+    sahd_label_train <- sahd[train, 1]#ncol(sahd)]
 
 
     #REGRESION LOGISTICA
