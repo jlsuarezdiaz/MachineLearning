@@ -433,19 +433,16 @@ print(ml2.Ein)
 # vis - Poca correlación
 # doy - Cuadrática
 
-mr2 = lm(ozone ~ I(exp(vh/6000)) + temp + I(dpg^2) + I(exp(ibt)) + I(doy^2), data=ozone.df, subset=train)
+mr2 = lm(ozone ~ I(vh^2) + temp + I(dpg^2) + I(ibt^2) + I(doy^2), data=ozone.df, subset=train)
 
 #Cálulo del Ein
     mr2.Ein <- mean(mr2$residuals^2)
     
-    #mr2.pred_train = predict(mr2,type = "response")
-    #mr2.Ein2 <- mean((mr1.pred_train-lozone.train)^2)
-    # Salen iguales Ein y Ein2, asi que perfe
     
     #Cálculo del Etest
 
-    #mr2.pred_test = predict(mr2, ozone.test, type="response")
-    #mr2.Etest <- mean((mr2.pred_test-lozone.test)^2)
+    mr2.pred_test = predict(mr2, ozone.test, type="response")
+    mr2.Etest <- mean((mr2.pred_test-lozone.test)^2)
     
 
 ```
