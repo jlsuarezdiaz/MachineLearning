@@ -149,7 +149,7 @@ output: pdf_document
 ```{r, echo=F, warning=F}
 # Realizamos todo el preprocesamiento directamente con preProcess (ejecutando solo el chunk de lectura de datos para hacer esto)
 
-ObjetoTrans = preProcess(sahd[,names(sahd)!="chd"],method = c("BoxCox","center","scale","pca"),thres = 0.8)
+ObjetoTrans = preProcess(sahd[,names(sahd)!="chd"],method = c("BoxCox","center","scale","pca"),thres = 0.95)
 
 # El parámetro thres indica cuántas componentes hacen falta para explicar la fracción thres de los datos
 # 1 -> 2 atributos ??????
@@ -163,21 +163,110 @@ ObjetoTrans
 sahdTrans <- predict(ObjetoTrans,sahd)
 dim(sahdTrans)
 
-copy_sahd <- sahd
-sahd <- sahdTrans # (Para no cambiar el código siguiente)
+
 
 ```
 
 
 
+```{r, echo=F, warning=F}
+  #Paso 5: Preparación de conjunto de train/test, y de las etiquetas train/test
+  sahd.data <- sahdTrans[,-1]
+  sahd.label <- sahdTrans[,1]
+  # sahd.label[sahd.label==0] <- -1  ## (?) Sigue haciendo falta poner labels a -1 y +1 ?
+  
+  train <- sample(nrow(sahd),0.7*nrow(sahd))
+  sahd.train <- sahd.data[train,]
+  sahd.test <- sahd.data[-train,]
+  
+  #Etiquetas
+  lsahd.train <- sahd.label[train]
+  lsahd.test <- sahd.label[-train]
+
+```
+
+
+```{r, echo=F,warning=F}
+# REGRESIÓN LOGÍSTICA
+
+ml1 <- glm(chd ~ ., family = binomial(logit), data = sahd.data, subset=train)
+summary(ml1)
+
+#Cálculo de probabilidades
+
+ml1.prob_train = predict(ml1, type = "response") #no tenemos que introducirle el train porque recuerda
+ml1.prob_test = predict(ml1, sahd.test, type="response")
+
+# Etest
+ml1.pred_test = rep(0, length(ml1.prob_test)) # predicciones por defecto 0
+ml1.pred_test[ml1.prob_test >=0.5] = 1 # >= 0.5 clase 1
+
+table(ml1.pred_test, lsahd.test) 
+
+ml1.Etest = mean(ml1.pred_test != lsahd.test)
+cat("Etest con el modelo LR: "); 
+print(ml1$call)
+print(ml1.Etest)
+    
+# Ein
+ml1.pred_train = rep(0, length(ml1.prob_train)) #predicciones por defecto 0
+ml1.pred_train[ml1.prob_train >= 0.5] = 1
+table(ml1.pred_train, lsahd.train)
+    
+ml1.Ein = mean(ml1.pred_train != lsahd.train)
+cat("Ein con el modelo LR: "); 
+print(ml1$call)
+print(ml1.Ein)
+
+
+```
+
+
+```{r, echo=F,warning=F}
+# GAUSSIANA
+
+ml2 <- glm(chd ~ ., family = gaussian(identity), data = sahd.data, subset=train)
+summary(ml2)
+
+#Cálculo de probabilidades
+
+ml2.prob_train = predict(ml2, type = "response") #no tenemos que introducirle el train porque recuerda
+ml2.prob_test = predict(ml2, sahd.test, type="response")
+
+# Etest
+ml2.pred_test = rep(0, length(ml2.prob_test)) # predicciones por defecto 0
+ml2.pred_test[ml2.prob_test >=0.5] = 1 # >= 0.5 clase 1
+
+table(ml2.pred_test, lsahd.test) 
+
+ml2.Etest = mean(ml2.pred_test != lsahd.test)
+cat("Etest con el modelo Gaussiano: "); 
+print(ml2$call)
+print(ml2.Etest)
+    
+# Ein
+ml2.pred_train = rep(0, length(ml2.prob_train)) #predicciones por defecto 0
+ml2.pred_train[ml2.prob_train >= 0.5] = 1
+table(ml2.pred_train, lsahd.train)
+    
+ml2.Ein = mean(ml2.pred_train != lsahd.train)
+cat("Ein con el modelo Gaussiano: "); 
+print(ml2$call)
+print(ml2.Ein)
+
+
+```
+
+
+<!--
 ```{r, echo=F,warning=F}
     
     #Paso 5: Preparación de conjunto de train/test, y de las etiquetas train/test
     train <- sample(nrow(sahd), 0.7*nrow(sahd))
     sahd_train <- sahd[train,-ncol(sahd)]
     sahd_test <- sahd[-train,-ncol(sahd)]
-    sahd_label_test <- sahd[-train, 1]#ncol(sahd)]
-    sahd_label_train <- sahd[train, 1]#ncol(sahd)]
+    sahd_label_test <- sahd[-train, ncol(sahd)]
+    sahd_label_train <- sahd[train, ncol(sahd)]
 
 
     #REGRESION LOGISTICA
@@ -269,16 +358,19 @@ sahd <- sahdTrans # (Para no cambiar el código siguiente)
     print(ein_ml3)
     
 ```
+-->
+
 #Regresión
 
 ```{r echo = FALSE}
     #PREPARACIÓN DE LOS DATOS
-    ozone <- read.table("./data/ozone", sep=",",head=T)
-    summary(ozone)
+    ozone.df <- read.table("./data/ozone", sep=",",head=T)
+    summary(ozone.df)
 
     #PREPROCESAMIENTO DE LOS DATOS <- Esto hay que hacerlo también en la regresión? No lo tengo claro
-    dim(ozone)
+    dim(ozone.df)
     
+
     #Paso 1: No hay variables cualitativas -> no problemo
     
     #Paso 2: No hay columnas que tengan "Status" ni redundantes (?)
@@ -287,17 +379,95 @@ sahd <- sahdTrans # (Para no cambiar el código siguiente)
     
     #Paso 4: Eliminación de atributos (en nuestro modelo no hay demasiados (creo))
     
-    
+
+``` 
+
+```{r, echo=F,warning=F}
     #Paso 5: Preparación de conjunto de train/test
-    train_ozone <- sample(nrow(ozone), 0.7*nrow(ozone))
-    ozone_train <- ozone[train_ozone,-ncol(ozone)]
-    ozone_test <- ozone[-train_ozone,-ncol(ozone)]
+    train <- sample(nrow(ozone.df), 0.7*nrow(ozone.df))
+    ozone.data <- ozone.df[,-1]
+    ozone.label <- ozone.df[,1]
+    
+    ozone.train <- ozone.data[train,]
+    ozone.test <- ozone.data[-train,]
+    
+    lozone.train <- ozone.label[train]
+    lozone.test <- ozone.label[-train]
 
     #Ozone es lo que vamos a estimar
-    attach(ozone)
-    pairs(~ ozone + vh + wind + humidity + temp + ibh + dpg + ibt + vis + doy, data= ozone)
+    attach(ozone.df)
+    pairs(~ozone + vh + wind + humidity + temp + ibh + dpg + ibt + vis + doy, data= ozone.df)
     
-    m1 = lm(mpg ~ weight, data=Auto, subset=train)
+    mr1 = lm(ozone ~ vh + wind + humidity + temp + ibh + dpg + ibt + vis + doy, data=ozone.df, subset=train)
     
+    #Cálulo del Ein
+    mr1.Ein <- mean(mr1$residuals^2)
+    
+    mr1.pred_train = predict(mr1,type = "response")
+    mr1.Ein2 <- mean((mr1.pred_train-lozone.train)^2)
+    # Salen iguales Ein y Ein2, asi que perfe
+    
+    #Cálculo del Etest
+
+    mr1.pred_test = predict(mr1, ozone.test, type="response")
+    mr1.Etest <- mean((mr1.pred_test-lozone.test)^2)
+    
+    #plot(doy,ozone, main = "doy vs mpg")
+    #abline(m1$coefficients[c(1,10)])
+    
+
+```
+
+
+```{r, echo=F,warning=F}
+# Pruebo con una transformación
+
+# Correlaciones aparentes (por el dibujo):
+# vh - Potencial e incluso exponencial
+# wind - Poca correlación, quizás cuadrática
+# humidity - Poca correlación, quizás cuadrática o lineal
+# temp - Mucha correlación, lineal o quizás cuadrática
+# ibh - Poca correlación
+# dpg - Cuadrática
+# ibt - Potencial e incluso exponencial
+# vis - Poca correlación
+# doy - Cuadrática
+
+mr2 = lm(ozone ~ I(exp(vh/6000)) + temp + I(dpg^2) + I(exp(ibt)) + I(doy^2), data=ozone.df, subset=train)
+
+#Cálulo del Ein
+    mr2.Ein <- mean(mr2$residuals^2)
+    
+    #mr2.pred_train = predict(mr2,type = "response")
+    #mr2.Ein2 <- mean((mr1.pred_train-lozone.train)^2)
+    # Salen iguales Ein y Ein2, asi que perfe
+    
+    #Cálculo del Etest
+
+    #mr2.pred_test = predict(mr2, ozone.test, type="response")
+    #mr2.Etest <- mean((mr2.pred_test-lozone.test)^2)
+    
+
+```
+
+
+```{r, echo=F,warning=F}
+# Idea para estimar el comportamiento del ozono respecto a cada dato
+
+# - Elaboramos las tablas (ozono,dato) respecto a cada dato ordenadas por ozono
+# - Calculamos el vector de cocientes (ozono[i]-ozono[i-1])/(dato[i]-dato[i-1])
+# - Estudiamos el comportamiento del vector cociente
+
+dd <- matrix(ncol = ncol(ozone.df)-1,nrow = nrow(ozone.df)-1)
+
+for(j in 2:ncol(ozone.df)){
+  ddm <- matrix(c(ozone,ozone.df[,j]),ncol = 2)
+  for(i in 2:nrow(ddm)){
+    dd[i-1,j-1] <- (ddm[i,2]-ddm[i-1,2])/(ddm[i,1]-ddm[i-1,1])
+  }
+}
+
+
+
 ```
 
