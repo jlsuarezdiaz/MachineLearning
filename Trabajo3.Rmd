@@ -12,6 +12,8 @@ output: pdf_document
 
 #Clasificación.
 
+## Comprensión del problema a resolver.
+
 ```{r echo = FALSE, warning=FALSE}
   
     #PREPARACIÓN DE LOS DATOS
@@ -29,6 +31,8 @@ output: pdf_document
     attach(sahd)
     pairs(~ sbp + tobacco + ldl + adiposity + present_famhist +typea + obesity + alcohol + age, data= sahd, col = chd+3)
 ```
+
+## Preprocesado de datos.
 
 ```{r echo = FALSE, warning=FALSE}
     
@@ -164,7 +168,7 @@ dim(sahdTrans)
 
 ```
 
-
+## Preparación de conjutos de training, validación y test.
 
 ```{r, echo=F, warning=F}
   #Paso 5: Preparación de conjunto de train/test, y de las etiquetas train/test
@@ -182,20 +186,21 @@ dim(sahdTrans)
   
 ```
 
+## Selección de clases de funciones a usar.
 
 ```{r, echo=F,warning=F}
 # REGRESIÓN LOGÍSTICA
 calculateEtest <- function(ml, test, ltest){
   #Cálculo de probabilidades
   ml.prob_test = predict(ml, test, type="response")
-  
+
   # Etest
   ml.pred_test = rep(0, length(ml.prob_test)) # predicciones por defecto 0
   ml.pred_test[ml.prob_test >=0.5] = 1 # >= 0.5 clase 1
   
   ml.Etest = mean(ml.pred_test != ltest)
   
-  return(list(ml.Etest,ml.pred_test))
+  return(list(ml.Etest, ml.pred_test))
 }
 
 calculateEin <- function(ml ,ltrain){
@@ -204,10 +209,10 @@ calculateEin <- function(ml ,ltrain){
   # Ein
   ml.pred_train = rep(0, length(ml.prob_train)) #predicciones por defecto 0
   ml.pred_train[ml.prob_train >= 0.5] = 1
-  
+    
   ml.Ein = mean(ml.pred_train != ltrain)
 
-  return(list(ml.Ein, ml_pred_train))
+  return(list(ml.Ein, ml.pred_train))
 }
 
 #binomial
@@ -235,15 +240,15 @@ ml.quasibinomial1 <- glm(chd ~ ., family = quasibinomial(link = "logit"), data =
 #quasipoisson
 ml.quasipoisson1 <- glm(chd ~ ., family = quasipoisson(link = "log"), data = sahd.data, subset=train)  
 
-models <- c(ml.binomial1, ml.binomial2, ml.binomial3, ml.gaussian1, ml.gaussian2, ml.gaussian3, ml.poisson1, ml.quasi1, ml.quasibinomial1, ml.quasipoisson1)
+models <- list(ml.binomial1, ml.binomial2, ml.binomial3, ml.gaussian1, ml.gaussian2, ml.gaussian3, ml.poisson1, ml.quasi1, ml.quasibinomial1, ml.quasipoisson1)
 
 testFamilies <- function(models, test, ltrain, ltest){
-  print(models)
+  #print(models)
   results <- matrix(nrow=length(models), ncol = 2)
   
   for(i in seq_along(models)){
-    results[i,1] <-calculateEin(models[i],ltrain)
-    results[i,2] <- calculateEout(models[i],test,ltest)
+    results[i,1] <-calculateEin(models[[i]],ltrain)[[1]]
+    results[i,2] <- calculateEtest(models[[i]],test,ltest)[[1]]
   }
   
   return(results)
@@ -251,213 +256,72 @@ testFamilies <- function(models, test, ltrain, ltest){
   
 testFamilies(models, sahd.test, lsahd.train, lsahd.test)
 
-
-
-    
-cat("Ein con el modelo LR: "); 
-print(ml1$call)
-print(ml1.Ein)
+#cat("Ein con el modelo LR: "); 
+#print(ml1$call)
+#print(ml1.Ein)
 ```
 
+
+## Regularización.
+
+Hay que mirar si hace falta regularización -> ¿Se realiza mucho aprendizaje?
+
+Lasso -> Trata de evitar el sobreaprendizaje penalizando los coeficientes grandes -> Ventaja : además nos simplifica el modelo.
+
+Si suponemos que sí -> R proporciona una función llamada regresión lasso, el funcionamiento consiste en aplicar regresión y cuando los valores están muy cercanos a 0, los trunca directamente a 0.
 
 ```{r, echo=F,warning=F}
-# GAUSSIANA
-summary(ml2)
+  #library(glmnet)
+  #El método para llamar a GLM con lasso (elasticnet regularization) es glmnet
 
-#Cálculo de probabilidades
-ml2.prob_train = predict(ml2, type = "response") #no tenemos que introducirle el train porque recuerda
-ml2.prob_test = predict(ml2, sahd.test, type="response")
+  #En la documentación aqui parece que haya más families.
 
-# Etest
-ml2.pred_test = rep(0, length(ml2.prob_test)) # predicciones por defecto 0
-ml2.pred_test[ml2.prob_test >=0.5] = 1 # >= 0.5 clase 1
+  #Mediante validación cruzada sacamos el mejor lambda
+  ml_lasso <- cv.glmnet(as.matrix(sahd.train), lsahd.train, family="binomial")
 
-table(ml2.pred_test, lsahd.test) 
+  plot(ml_lasso)
+  plot(ml_lasso$glmnet.fit, xvar="lambda", label=TRUE)
+  #Se puede usar lambda_min o lambda_1se, q es la más grande con varianza más pequeña
+  ml_lasso$lambda.min
+  
+  #Interpretación de los coeficientes -> log hazard ratios, ratio de riesgo.
+  #Coeficiente positivo -> alto riesgo de suceso
+  #Coeficiente negativo -> viceversa
+  #Para q representen la "importancia" -> hay que escalarlos a varianza 1
+  #Cuando tiene coeficiente 0 -> la ha quitado del problema (parece q a nosotros no nos quita nada)
 
-ml2.Etest = mean(ml2.pred_test != lsahd.test)
-cat("Etest con el modelo Gaussiano: "); 
-print(ml2$call)
-print(ml2.Etest)
-    
-# Ein
-ml2.pred_train = rep(0, length(ml2.prob_train)) #predicciones por defecto 0
-ml2.pred_train[ml2.prob_train >= 0.5] = 1
-table(ml2.pred_train, lsahd.train)
-    
-ml2.Ein = mean(ml2.pred_train != lsahd.train)
-cat("Ein con el modelo Gaussiano: "); 
-print(ml2$call)
-print(ml2.Ein)
+  coeffs <- coef(ml_lasso, s=ml_lasso$lambda.min)
 
 
+  #Prefijamos un umbral (cual?)
 ```
 
+Parece ser que para un umbral medio pequeño nos quedaríamos con todas, luego no hay que aplicar regularización.
 
+## Definición del modelo.
+
+Usar regsubsets
 
 ```{r, echo=F,warning=F}
-# POISSON
-summary(ml3)
+  #nbest -> numero de subconjuntos de cada tamaño para almacenar (que nos devuelva solo el mejor de cada tamaño.)
+  testing <- regsubsets(chd ~ ., data = sahd.data, nbest = 1)
 
-#Cálculo de probabilidades
-ml3.prob_train = predict(ml3, type = "response") #no tenemos que introducirle el train porque recuerda
-ml3.prob_test = predict(ml3, sahd.test, type="response")
+  #Obtenemos una tablita con los que es mejor coger.
+  summary(testing)
+  
+  #Más negrito cuanto más aparezca?
+  plot(testing)
 
-# Etest
-ml3.pred_test = rep(0, length(ml3.prob_test)) # predicciones por defecto 0
-ml3.pred_test[ml3.prob_test >=0.5] = 1 # >= 0.5 clase 1
-
-table(ml3.pred_test, lsahd.test) 
-
-ml3.Etest = mean(ml3.pred_test != lsahd.test)
-cat("Etest con el modelo Gaussiano: "); 
-print(ml3$call)
-print(ml3.Etest)
-    
-# Ein
-ml3.pred_train = rep(0, length(ml2.prob_train)) #predicciones por defecto 0
-ml3.pred_train[ml3.prob_train >= 0.5] = 1
-table(ml3.pred_train, lsahd.train)
-    
-ml3.Ein = mean(ml3.pred_train != lsahd.train)
-cat("Ein con el modelo de Poisson: "); 
-print(ml3$call)
-print(ml3.Ein)
-
-
+  
+  
 ```
-```{r, echo=F,warning=F}
-# QUASI
+
+## Selección y ajuste del modelo final.
 
 
-min(sahd.data)
-summary(ml1)
+## Estimación del $E_out$.
 
-#Cálculo de probabilidades
-ml4.prob_train = predict(ml4, type = "response") #no tenemos que introducirle el train porque recuerda
-ml4.prob_test = predict(ml4, sahd.test, type="response")
-
-# Etest
-ml4.pred_test = rep(0, length(ml1.prob_test)) # predicciones por defecto 0
-ml4.pred_test[ml1.prob_test >=0.5] = 1 # >= 0.5 clase 1
-
-table(ml4.pred_test, lsahd.test) 
-
-ml4.Etest = mean(ml4.pred_test != lsahd.test)
-cat("Etest con el modelo LR: "); 
-print(ml1$call)
-print(ml1.Etest)
-    
-# Ein
-ml1.pred_train = rep(0, length(ml1.prob_train)) #predicciones por defecto 0
-ml1.pred_train[ml1.prob_train >= 0.5] = 1
-table(ml1.pred_train, lsahd.train)
-    
-ml1.Ein = mean(ml1.pred_train != lsahd.train)
-cat("Ein con el modelo LR: "); 
-print(ml1$call)
-print(ml1.Ein)
-```
-<!--
-```{r, echo=F,warning=F}
-    
-    #Paso 5: Preparación de conjunto de train/test, y de las etiquetas train/test
-    train <- sample(nrow(sahd), 0.7*nrow(sahd))
-    sahd_train <- sahd[train,-ncol(sahd)]
-    sahd_test <- sahd[-train,-ncol(sahd)]
-    sahd_label_test <- sahd[-train, ncol(sahd)]
-    sahd_label_train <- sahd[train, ncol(sahd)]
-
-
-    #REGRESION LOGISTICA
-    #Primer modelo lineal -> Binomial
-    ml1 = glm(chd ~ .,family = binomial(logit), data = sahd[,-ncol(sahd)], subset=train)
-    summary(ml1)
-    
-    #Cálculo de probabilidades
-    prob_train_ml1 = predict(ml1, type = "response") #no tenemos que introducirle el train porque recuerda
-    prob_test_ml1 = predict(ml1, sahd_test, type="response")
-    
-    #Veamos cómo predice 
-    pred_test_ml1 = rep(0, length(prob_test_ml1)) # predicciones por defecto 0
-    pred_test_ml1[prob_test_ml1 >=0.5] = 1 # >= 0.5 clase 1
-    table(pred_test_ml1, sahd_label_test) 
-    
-    #obtenemos el E_test
-    eval_ml1 = mean(pred_test_ml1 != sahd_label_test)
-    cat("Eval con el modelo LR "); print(ml1$call)
-    print(eval_ml1)
-    
-    #obtenemos el E_in
-    pred_train_ml1 = rep(0, length(prob_train_ml1)) #predicciones por defecto 0
-    pred_train_ml1[prob_train_ml1 >= 0.5] = 1
-    table(pred_train_ml1, sahd_label_train)
-    
-    ein_ml1 = mean(pred_train_ml1 != sahd_label_train)
-    cat("E_in con el modelo LR "); print(ml1$call)
-    print(ein_ml1)
-    
-    #El E_in sale mayor que el E_out ?¿?¿?¿?¿
-    
-    #Segundo modelo lineal -> gaussiana
-    #Con todos los atributos
-    ml2 = glm(chd ~ .,family = gaussian(identity), data = sahd[,-ncol(sahd)], subset=train)
-    summary(ml2)
-    
-    #Cálculo de probabilidades
-    prob_train_ml2 = predict(ml2, type = "response") #no tenemos que introducirle el train porque recuerda
-    prob_test_ml2 = predict(ml2, sahd_test, type="response")
-    
-    #Veamos cómo predice 
-    pred_test_ml2 = rep(0, length(prob_test_ml2)) # predicciones por defecto 0
-    pred_test_ml2[prob_test_ml2 >=0.5] = 1 # >= 0.5 clase 1
-    table(pred_test_ml2, sahd_label_test) 
-    
-    #obtenemos el E_test
-    eval_ml2 = mean(pred_test_ml2 != sahd_label_test)
-    cat("Eval con el modelo LR "); print(ml2$call)
-    print(eval_ml2)
-    
-    #obtenemos el E_in
-    pred_train_ml2 = rep(0, length(prob_train_ml2)) #predicciones por defecto 0
-    pred_train_ml2[prob_train_ml2 >= 0.5] = 1
-    table(pred_train_ml2, sahd_label_train)
-    
-    ein_ml2 = mean(pred_train_ml2 != sahd_label_train)
-    cat("E_in con el modelo LR "); print(ml2$call)
-    print(ein_ml2)
-    
-    
-    #La Gamam no se puede usar por haber valores negativos  
-    
-    #Tercer modelo lineal -> 
-    ml3 = glm(chd ~ .,family = poisson(log), data = sahd[,-ncol(sahd)], subset=train)
-    summary(ml3)
-    
-    #Cálculo de probabilidades
-    prob_train_ml3 = predict(ml3, type = "response") #no tenemos que introducirle el train porque recuerda
-    prob_test_ml3 = predict(ml3, sahd_test, type="response")
-    
-    #Veamos cómo predice 
-    pred_test_ml3 = rep(0, length(prob_test_ml3)) # predicciones por defecto 0
-    pred_test_ml3[prob_test_ml3 >=0.5] = 1 # >= 0.5 clase 1
-    table(pred_test_ml3, sahd_label_test) 
-    
-    #obtenemos el E_test
-    eval_ml3 = mean(pred_test_ml3 != sahd_label_test)
-    cat("Eval con el modelo LR "); print(ml3$call)
-    print(eval_ml3)
-    
-    #obtenemos el E_in
-    pred_train_ml3 = rep(0, length(prob_train_ml3)) #predicciones por defecto 0
-    pred_train_ml3[prob_train_ml3 >= 0.5] = 1
-    table(pred_train_ml3, sahd_label_train)
-    
-    ein_ml3 = mean(pred_train_ml3 != sahd_label_train)
-    cat("E_in con el modelo LR "); print(ml3$call)
-    print(ein_ml3)
-    
-```
--->
+## Estudio de la calidad del modelo.
 
 #Regresión
 
