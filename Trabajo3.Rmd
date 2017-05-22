@@ -148,7 +148,7 @@ output: pdf_document
 ```{r, echo=F, warning=F}
 # Realizamos todo el preprocesamiento directamente con preProcess (ejecutando solo el chunk de lectura de datos para hacer esto)
 
-ObjetoTrans = preProcess(sahd[,names(sahd)!="chd"],method = c("BoxCox","center","scale","pca"),thres = 0.95)
+ObjetoTrans = preProcess(sahd[,names(sahd)!="chd"],method = c("BoxCox","center","scale","pca"),thres = 0.9)
 
 # El parámetro thres indica cuántas componentes hacen falta para explicar la fracción thres de los datos
 # 1 -> 2 atributos ??????
@@ -179,47 +179,89 @@ dim(sahdTrans)
   #Etiquetas
   lsahd.train <- sahd.label[train]
   lsahd.test <- sahd.label[-train]
-
+  
 ```
 
 
 ```{r, echo=F,warning=F}
 # REGRESIÓN LOGÍSTICA
-ml1 <- glm(chd ~ ., family = binomial(logit), data = sahd.data, subset=train)
-summary(ml1)
+calculateEtest <- function(ml, test, ltest){
+  #Cálculo de probabilidades
+  ml.prob_test = predict(ml, test, type="response")
+  
+  # Etest
+  ml.pred_test = rep(0, length(ml.prob_test)) # predicciones por defecto 0
+  ml.pred_test[ml.prob_test >=0.5] = 1 # >= 0.5 clase 1
+  
+  ml.Etest = mean(ml.pred_test != ltest)
+  
+  return(list(ml.Etest,ml.pred_test))
+}
 
-#Cálculo de probabilidades
-ml1.prob_train = predict(ml1, type = "response") #no tenemos que introducirle el train porque recuerda
-ml1.prob_test = predict(ml1, sahd.test, type="response")
+calculateEin <- function(ml ,ltrain){
+  print(ml)
+  ml.prob_train = predict(ml, type = "response") #no tenemos que introducirle el train porque recuerda
+  # Ein
+  ml.pred_train = rep(0, length(ml.prob_train)) #predicciones por defecto 0
+  ml.pred_train[ml.prob_train >= 0.5] = 1
+  
+  ml.Ein = mean(ml.pred_train != ltrain)
 
-# Etest
-ml1.pred_test = rep(0, length(ml1.prob_test)) # predicciones por defecto 0
-ml1.pred_test[ml1.prob_test >=0.5] = 1 # >= 0.5 clase 1
+  return(list(ml.Ein, ml_pred_train))
+}
 
-table(ml1.pred_test, lsahd.test) 
+#binomial
+ml.binomial1 <- glm(chd ~ ., family = binomial(logit), data = sahd.data, subset=train)
+ml.binomial2 <- glm(chd ~ ., family = binomial(probit), data = sahd.data, subset=train)
+ml.binomial3 <- glm(chd ~ ., family = binomial(cauchit), data = sahd.data, subset=train)
 
-ml1.Etest = mean(ml1.pred_test != lsahd.test)
-cat("Etest con el modelo LR: "); 
-print(ml1$call)
-print(ml1.Etest)
+#gaussiana
+ml.gaussian1 <- glm(chd ~ ., family = gaussian(identity), data = sahd.data, subset=train)
+ml.gaussian2 <- glm(chd ~ ., family = gaussian(log), data = sahd.data, subset=train, start=rep(0, ncol(sahd.data)+1))
+#ml.gaussian3 <- glm(chd ~ ., family = gaussian(inverse), data = sahd.data, subset=train,start=rep(, ncol(sahd.data)+1)) <- no converge
+  
+#poisson
+ml.poisson1 <- glm(chd ~ ., family = poisson(log), data = sahd.data, subset=train)
+#ml.poisson2 <- glm(chd ~ ., family = poisson(identity), data = sahd.data, subset=train, start=rep(0,ncol(sahd.data)+1)) 
+#ml.poisson1 <- glm(chd ~ ., family = poisson(sqrt), data = sahd.data, subset=train, start=rep(1, ncol(sahd.data)+1))
+
+#quasi
+ml.quasi1 <- glm(chd ~ ., family = quasi(link = "identity", variance = "constant"), data = sahd.data, subset=train)
+#ml.quasi2 <- glm(chd ~ ., family = quasi(link = "sqrt"), data = sahd.data, subset=train, start=rep(1, ncol(sahd.data)+1)) <- hay mas, todas con el mismo error
+  
+#quasibinomial
+ml.quasibinomial1 <- glm(chd ~ ., family = quasibinomial(link = "logit"), data = sahd.data, subset=train)
+
+#quasipoisson
+ml.quasipoisson1 <- glm(chd ~ ., family = quasipoisson(link = "log"), data = sahd.data, subset=train)  
+
+models <- c(ml.binomial1, ml.binomial2, ml.binomial3, ml.gaussian1, ml.gaussian2, ml.gaussian3, ml.poisson1, ml.quasi1, ml.quasibinomial1, ml.quasipoisson1)
+
+testFamilies <- function(models, test, ltrain, ltest){
+  print(models)
+  results <- matrix(nrow=length(models), ncol = 2)
+  
+  for(i in seq_along(models)){
+    results[i,1] <-calculateEin(models[i],ltrain)
+    results[i,2] <- calculateEout(models[i],test,ltest)
+  }
+  
+  return(results)
+}
+  
+testFamilies(models, sahd.test, lsahd.train, lsahd.test)
+
+
+
     
-# Ein
-ml1.pred_train = rep(0, length(ml1.prob_train)) #predicciones por defecto 0
-ml1.pred_train[ml1.prob_train >= 0.5] = 1
-table(ml1.pred_train, lsahd.train)
-    
-ml1.Ein = mean(ml1.pred_train != lsahd.train)
 cat("Ein con el modelo LR: "); 
 print(ml1$call)
 print(ml1.Ein)
-
-
 ```
 
 
 ```{r, echo=F,warning=F}
 # GAUSSIANA
-ml2 <- glm(chd ~ ., family = gaussian(identity), data = sahd.data, subset=train)
 summary(ml2)
 
 #Cálculo de probabilidades
@@ -250,9 +292,10 @@ print(ml2.Ein)
 
 ```
 
+
+
 ```{r, echo=F,warning=F}
 # POISSON
-ml3 <- glm(chd ~ ., family = poisson(log), data = sahd.data, subset=train)
 summary(ml3)
 
 #Cálculo de probabilidades
@@ -283,11 +326,37 @@ print(ml3.Ein)
 
 ```
 ```{r, echo=F,warning=F}
-# KNN
+# QUASI
 
 
+min(sahd.data)
+summary(ml1)
+
+#Cálculo de probabilidades
+ml4.prob_train = predict(ml4, type = "response") #no tenemos que introducirle el train porque recuerda
+ml4.prob_test = predict(ml4, sahd.test, type="response")
+
+# Etest
+ml4.pred_test = rep(0, length(ml1.prob_test)) # predicciones por defecto 0
+ml4.pred_test[ml1.prob_test >=0.5] = 1 # >= 0.5 clase 1
+
+table(ml4.pred_test, lsahd.test) 
+
+ml4.Etest = mean(ml4.pred_test != lsahd.test)
+cat("Etest con el modelo LR: "); 
+print(ml1$call)
+print(ml1.Etest)
+    
+# Ein
+ml1.pred_train = rep(0, length(ml1.prob_train)) #predicciones por defecto 0
+ml1.pred_train[ml1.prob_train >= 0.5] = 1
+table(ml1.pred_train, lsahd.train)
+    
+ml1.Ein = mean(ml1.pred_train != lsahd.train)
+cat("Ein con el modelo LR: "); 
+print(ml1$call)
+print(ml1.Ein)
 ```
-
 <!--
 ```{r, echo=F,warning=F}
     
@@ -428,6 +497,11 @@ print(ml3.Ein)
     attach(ozone.df)
     pairs(~ozone + vh + wind + humidity + temp + ibh + dpg + ibt + vis + doy, data= ozone.df)
     mr1 = lm(ozone ~ vh + wind + humidity + temp + ibh + dpg + ibt + vis + doy, data=ozone.df, subset=train)
+    
+    ObjetoTrans.ozone = preProcess(ozone.df[,names(ozone.df)!="ozone"],method = c("BoxCox","center","scale"),thres = 0.95)
+    ozoneTrans = predict(ObjetoTrans.ozone, ozone.df)
+    pairs(ozoneTrans)
+
     
     #Cálulo del Ein
     mr1.Ein <- mean(mr1$residuals^2)
