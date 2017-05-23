@@ -151,6 +151,7 @@ output: pdf_document
 
 ```{r, echo=F, warning=F}
 # Realizamos todo el preprocesamiento directamente con preProcess (ejecutando solo el chunk de lectura de datos para hacer esto)
+#library(caret)
 
 ObjetoTrans = preProcess(sahd[,names(sahd)!="chd"],method = c("BoxCox","center","scale","pca"),thres = 0.9)
 
@@ -198,6 +199,8 @@ calculateEtest <- function(ml, test, ltest){
   ml.pred_test = rep(0, length(ml.prob_test)) # predicciones por defecto 0
   ml.pred_test[ml.prob_test >=0.5] = 1 # >= 0.5 clase 1
   
+  cat(length(ml.pred_test))
+  cat(length(ltest))
   ml.Etest = mean(ml.pred_test != ltest)
   
   return(list(ml.Etest, ml.pred_test))
@@ -240,12 +243,12 @@ ml.quasibinomial1 <- glm(chd ~ ., family = quasibinomial(link = "logit"), data =
 #quasipoisson
 ml.quasipoisson1 <- glm(chd ~ ., family = quasipoisson(link = "log"), data = sahd.data, subset=train)  
 
-models <- list(ml.binomial1, ml.binomial2, ml.binomial3, ml.gaussian1, ml.gaussian2, ml.gaussian3, ml.poisson1, ml.quasi1, ml.quasibinomial1, ml.quasipoisson1)
+models <- list(ml.binomial1, ml.binomial2, ml.binomial3, ml.gaussian1, ml.gaussian2, ml.poisson1, ml.quasi1, ml.quasibinomial1, ml.quasipoisson1)
 
 testFamilies <- function(models, test, ltrain, ltest){
   #print(models)
   results <- matrix(nrow=length(models), ncol = 2)
-  
+
   for(i in seq_along(models)){
     results[i,1] <-calculateEin(models[[i]],ltrain)[[1]]
     results[i,2] <- calculateEtest(models[[i]],test,ltest)[[1]]
@@ -256,11 +259,13 @@ testFamilies <- function(models, test, ltrain, ltest){
   
 testFamilies(models, sahd.test, lsahd.train, lsahd.test)
 
+ml.sahd = ml.poisson1;
 #cat("Ein con el modelo LR: "); 
 #print(ml1$call)
 #print(ml1.Ein)
 ```
 
+Por tanto, la familia de funciones elegidas es -> la que genera menor Etest -> ml.poisson1 = poisson(log)
 
 ## Regularización.
 
@@ -277,12 +282,14 @@ Si suponemos que sí -> R proporciona una función llamada regresión lasso, el 
   #En la documentación aqui parece que haya más families.
 
   #Mediante validación cruzada sacamos el mejor lambda
-  ml_lasso <- cv.glmnet(as.matrix(sahd.train), lsahd.train, family="binomial")
+  ml_lasso <- cv.glmnet(as.matrix(sahd.train), lsahd.train, family="gaussian")
 
+  #Podemos ver los valores y varianzas
   plot(ml_lasso)
   plot(ml_lasso$glmnet.fit, xvar="lambda", label=TRUE)
   #Se puede usar lambda_min o lambda_1se, q es la más grande con varianza más pequeña
   ml_lasso$lambda.min
+  ml_lasso$lambda.1se
   
   #Interpretación de los coeficientes -> log hazard ratios, ratio de riesgo.
   #Coeficiente positivo -> alto riesgo de suceso
@@ -290,13 +297,19 @@ Si suponemos que sí -> R proporciona una función llamada regresión lasso, el 
   #Para q representen la "importancia" -> hay que escalarlos a varianza 1
   #Cuando tiene coeficiente 0 -> la ha quitado del problema (parece q a nosotros no nos quita nada)
 
-  coeffs <- coef(ml_lasso, s=ml_lasso$lambda.min)
-
-
-  #Prefijamos un umbral (cual?)
+  #Utilizamos lambda.1se pues nos quita más atributos.
+  coeffs <- coef(ml_lasso, s=ml_lasso$lambda.1se)
+  
+  #Eliminamos los atributos del train  
+  coefficients <- coeffs[2:nrow(coeffs),]
+  sahd.train = sahd.train[,abs(coefficients)>0]
+  #Los eliminamos del test.
+  sahd.test = sahd.test[,abs(coefficients)>0]
 ```
 
 Parece ser que para un umbral medio pequeño nos quedaríamos con todas, luego no hay que aplicar regularización.
+
+Usando lambda1se si-> Nos elimina 3 características.
 
 ## Definición del modelo.
 
@@ -304,16 +317,31 @@ Usar regsubsets
 
 ```{r, echo=F,warning=F}
   #nbest -> numero de subconjuntos de cada tamaño para almacenar (que nos devuelva solo el mejor de cada tamaño.)
+  #library(leaps)
+
+  #No le quito los atributos porque parece que va a confirmar lo que ya veníamos imaginando: PC2, PC6 y PC7 es caca
   testing <- regsubsets(chd ~ ., data = sahd.data, nbest = 1)
+
+  #Lo hacemos teniendo en cuenta los otros
+  sahd.data = sahd.data[, abs(coefficients) > 0]
+  testing2 <- regsubsets(chd ~., data = sahd.data, nbest=1)
 
   #Obtenemos una tablita con los que es mejor coger.
   summary(testing)
+  summary(testing2)
   
   #Más negrito cuanto más aparezca?
-  plot(testing)
-
+  plot(testing2)
+  
+  #Vamos a comprobar que es el que menor error produce (esto es solo probando)
+  ml.1PC <-  glm(chd ~ present_famhist, family = poisson(log), data = sahd.data, subset=train)
+  calculateEtest(ml.1PC, sahd.test, lsahd.test)
+  calculateEin(ml.1PC, lsahd.train)
+  
+  length(train)
   
   
+  rows(sahd.test)
 ```
 
 ## Selección y ajuste del modelo final.
