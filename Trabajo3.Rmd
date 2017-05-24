@@ -190,17 +190,14 @@ dim(sahdTrans)
 ## Selección de clases de funciones a usar.
 
 ```{r, echo=F,warning=F}
-# REGRESIÓN LOGÍSTICA
-
 st <- function(ml, test, ltest, s=0){
   #Cálculo de probabilidades
   if(s==0){
     ml.prob_test = predict(ml, test, type="response")
-        print(ml.prob_test)
 
   }else{
-    ml.prob_test = predict(ml, test, type = "response", s = s)
-    print(ml.prob_test)
+    ml.prob_test = predict.glm(ml, test, type = "response",s = s)
+    ml.prob_test = ml.prob_test$fit
   }
 
   # Etest
@@ -224,6 +221,86 @@ calculateEin <- function(ml ,ltrain){
   return(list(ml.Ein, ml.pred_train))
 }
 
+testFamilies <- function(models, test, ltrain, ltest){
+
+  results <- matrix(nrow=length(models), ncol = 2)
+  colnames(results) <- c("Ein","Eout")
+  for(i in seq_along(models)){
+    results[i,1] <-calculateEin(models[[i]],ltrain)[[1]]
+    results[i,2] <- 
+      st(models[[i]],test,ltest)[[1]]
+  }
+  
+  return(results)
+}
+```
+
+```{r, echo=F,warning=F}
+
+# Validación (una sola vez)
+validateFamilies <- function(data,label){
+  #Muestra
+  train <- sample(nrow(data),0.7*nrow(data))
+  
+  #Datos
+  data.train <- data[train,]
+  data.test <-  data[-train,]
+  
+  #Etiquetas
+  label.train <- label[train]
+  label.test <- label[-train]
+  
+  #Modelos
+  #binomial
+  ml.binomial1 <- glm(chd ~ ., family = binomial(logit), data = data, subset=train)
+  ml.binomial2 <- glm(chd ~ ., family = binomial(probit), data = data, subset=train)
+  ml.binomial3 <- glm(chd ~ ., family = binomial(cauchit), data = data, subset=train)
+  #gaussiano
+  ml.gaussian1 <- glm(chd ~ ., family = gaussian(identity), data = data, subset=train)
+  ml.gaussian2 <- glm(chd ~ ., family = gaussian(log), data = data, subset=train, start=rep(0, ncol(data)+1))
+  #poisson
+  ml.poisson1 <- glm(chd ~ ., family = poisson(log), data = data, subset=train)
+  
+  #quasi
+  ml.quasi1 <- glm(chd ~ ., family = quasi(link = "identity", variance = "constant"), data = data, subset=train)
+
+  #quasibinomial
+  ml.quasibinomial1 <- glm(chd ~ ., family = quasibinomial(link = "logit"), data = data, subset=train)
+  #quasipoisson
+  ml.quasipoisson1 <- glm(chd ~ ., family = quasipoisson(link = "log"), data = data, subset=train)  
+
+  models <- list(ml.binomial1, ml.binomial2, ml.binomial3, ml.gaussian1, ml.gaussian2, ml.poisson1, ml.quasi1, ml.quasibinomial1, ml.quasipoisson1)
+  
+  testFamilies(models, data.test, label.train, label.test)
+  
+}
+
+# Función para realizar multiples validaciones
+repValidation <- function(rep,data,label){
+  l <- replicate(n = rep, expr = validateFamilies(data,label))
+  #l es una matriz 3D de rep x num_modelos x 2 (Ein,Eout)
+  #l[,,i] -> experimento i-ésimo
+  #[,i,] -> Ein / Eout de cada modelo en los distintos experimentos (i=1 Ein, i=2 Eout)
+  #[i,,] -> Ein y Eout para el modelo i-ésimo en cada experimento
+  apply(FUN = mean, X = l, MARGIN = c(1,2))
+}
+
+```
+
+```{r, echo=F, warning=F}
+# Comprobamos qué método proporciona un menor error de validación con múltiples validaciones
+repValidation(rep = 100, sahd.data, sahd.label)
+
+# Confirmamos que el modelo que mejor generaliza es el de Poisson
+#ml.sahd = ml.poisson1;
+
+```
+
+```{r, echo=F,warning=F}
+#Deprecated
+
+# REGRESIÓN LOGÍSTICA
+
 #binomial
 ml.binomial1 <- glm(chd ~ ., family = binomial(logit), data = sahd.data, subset=train)
 ml.binomial2 <- glm(chd ~ ., family = binomial(probit), data = sahd.data, subset=train)
@@ -241,28 +318,18 @@ ml.poisson1 <- glm(chd ~ ., family = poisson(log), data = sahd.data, subset=trai
 
 #quasi
 ml.quasi1 <- glm(chd ~ ., family = quasi(link = "identity", variance = "constant"), data = sahd.data, subset=train)
+
 #ml.quasi2 <- glm(chd ~ ., family = quasi(link = "sqrt"), data = sahd.data, subset=train, start=rep(1, ncol(sahd.data)+1)) <- hay mas, todas con el mismo error
   
 #quasibinomial
 ml.quasibinomial1 <- glm(chd ~ ., family = quasibinomial(link = "logit"), data = sahd.data, subset=train)
 
 #quasipoisson
-ml.quasipoisson1 <- glm(chd ~ PC1, family = quasipoisson(link = "log"), data = sahd.data, subset=train)  
+ml.quasipoisson1 <- glm(chd ~ ., family = quasipoisson(link = "log"), data = sahd.data, subset=train)  
 
 models <- list(ml.binomial1, ml.binomial2, ml.binomial3, ml.gaussian1, ml.gaussian2, ml.poisson1, ml.quasi1, ml.quasibinomial1, ml.quasipoisson1)
 
-testFamilies <- function(models, test, ltrain, ltest){
 
-  results <- matrix(nrow=length(models), ncol = 2)
-  colnames(results) <- c("Ein","Eout")
-  for(i in seq_along(models)){
-    results[i,1] <-calculateEin(models[[i]],ltrain)[[1]]
-    results[i,2] <- 
-      st(models[[i]],test,ltest)[[1]]
-  }
-  
-  return(results)
-}
   
 testFamilies(models, sahd.test, lsahd.train, lsahd.test)
 
@@ -306,6 +373,7 @@ stReg <-function(datos,label,pesos){
   #En la documentación aqui parece que haya más families.
 
   #Mediante validación cruzada sacamos el mejor lambda
+  # PREGUNTA: NO SERÍA POISSON????
   ml_lasso <- cv.glmnet(as.matrix(sahd.train), lsahd.train, family="gaussian")
 
   #Podemos ver los valores y varianzas
@@ -333,13 +401,12 @@ stReg <-function(datos,label,pesos){
   #sahd.test_lasso = sahd.test[,abs(coefficients)>0]
   
   #Aquí hay que hacer otro método del error para calcular el error de coefficients y ver cual es mejor
-  coeffs <- rep(288,length(coefficientes.1se))
+
+  st(ml.sahd,sahd.test,lsahd.test,ml_lasso$lambda.min)[[1]]
   
-  st(ml.sahd,sahd.test,lsahd.test,ml_lasso$lambda.min)
+  st(ml.sahd,sahd.test,lsahd.test,ml_lasso$lambda.1se)[[1]]
   
-  st(ml.sahd,sahd.test,lsahd.test,ml_lasso$lambda.1se)
-  
-  st(ml.sahd,sahd.test,lsahd.test)
+  st(ml.sahd,sahd.test,lsahd.test)[[1]]
 
 ```
 
