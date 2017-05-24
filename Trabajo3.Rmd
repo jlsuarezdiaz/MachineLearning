@@ -200,18 +200,14 @@ st <- function(ml, test, ltest, s=0){
 
   }else{
     ml.prob_test = predict(ml, test, type = "response", s = s)
-    print(ml.prob_test$)
+    print(ml.prob_test)
   }
 
   # Etest
   ml.pred_test = rep(0, length(ml.prob_test)) # predicciones por defecto 0
   ml.pred_test[ml.prob_test >=0.5] = 1 # >= 0.5 clase 1
   
-<<<<<<< HEAD
 
-=======
-  
->>>>>>> f31746a3418aec793b242278e6482f1096384f3f
   ml.Etest = mean(ml.pred_test != ltest)
   
   return(list(ml.Etest, ml.pred_test))
