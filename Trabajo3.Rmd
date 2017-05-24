@@ -26,7 +26,7 @@ output: pdf_document
     #Paso 1: Modificamos las variables cualitativas (el programa no sabe bien cómo tratarlas)
     #La única variable cualitativa es famhist = {present, absent}
     sahd[,5] <- ifelse(sahd[,5]=='Present',1,0)
-    colnames(sahd) <- c('sbp', 'tobacco', 'ldl', 'adiposity', 'present_famhist', 'typea', 'obesity', 'alcohol', 'age', 'chd')
+    colnames(sahd) <- c( 'sbp', 'tobacco', 'ldl', 'adiposity', 'present_famhist', 'typea', 'obesity', 'alcohol', 'age','chd')
     
     attach(sahd)
     pairs(~ sbp + tobacco + ldl + adiposity + present_famhist +typea + obesity + alcohol + age, data= sahd, col = chd+3)
@@ -153,7 +153,7 @@ output: pdf_document
 # Realizamos todo el preprocesamiento directamente con preProcess (ejecutando solo el chunk de lectura de datos para hacer esto)
 #library(caret)
 
-ObjetoTrans = preProcess(sahd[,names(sahd)!="chd"],method = c("BoxCox","center","scale","pca"),thres = 0.9)
+ObjetoTrans = preProcess(sahd[,names(sahd)!="chd"],method = c("BoxCox","center","scale"))
 
 # El parámetro thres indica cuántas componentes hacen falta para explicar la fracción thres de los datos
 # 1 -> 2 atributos ??????
@@ -173,8 +173,8 @@ dim(sahdTrans)
 
 ```{r, echo=F, warning=F}
   #Paso 5: Preparación de conjunto de train/test, y de las etiquetas train/test
-  sahd.data <- sahdTrans[,-1]
-  sahd.label <- sahdTrans[,1]
+  sahd.data <- sahdTrans[,-ncol(sahdTrans)]
+  sahd.label <- sahdTrans[,ncol(sahdTrans)]
   #sahd.label[sahd.label==0] <- -1 
   
   train <- sample(nrow(sahd),0.7*nrow(sahd))
@@ -191,23 +191,29 @@ dim(sahdTrans)
 
 ```{r, echo=F,warning=F}
 # REGRESIÓN LOGÍSTICA
-calculateEtest <- function(ml, test, ltest){
+
+st <- function(ml, test, ltest, s=0){
   #Cálculo de probabilidades
-  ml.prob_test = predict(ml, test, type="response")
+  if(s==0){
+    ml.prob_test = predict(ml, test, type="response")
+        print(ml.prob_test)
+
+  }else{
+    ml.prob_test = predict(ml, test, type = "response", s = s)
+    print(ml.prob_test$)
+  }
 
   # Etest
   ml.pred_test = rep(0, length(ml.prob_test)) # predicciones por defecto 0
   ml.pred_test[ml.prob_test >=0.5] = 1 # >= 0.5 clase 1
   
-  cat(length(ml.pred_test))
-  cat(length(ltest))
+
   ml.Etest = mean(ml.pred_test != ltest)
   
   return(list(ml.Etest, ml.pred_test))
 }
 
 calculateEin <- function(ml ,ltrain){
-  print(ml)
   ml.prob_train = predict(ml, type = "response") #no tenemos que introducirle el train porque recuerda
   # Ein
   ml.pred_train = rep(0, length(ml.prob_train)) #predicciones por defecto 0
@@ -251,7 +257,8 @@ testFamilies <- function(models, test, ltrain, ltest){
 
   for(i in seq_along(models)){
     results[i,1] <-calculateEin(models[[i]],ltrain)[[1]]
-    results[i,2] <- calculateEtest(models[[i]],test,ltest)[[1]]
+    results[i,2] <- 
+      st(models[[i]],test,ltest)[[1]]
   }
   
   return(results)
@@ -260,9 +267,7 @@ testFamilies <- function(models, test, ltrain, ltest){
 testFamilies(models, sahd.test, lsahd.train, lsahd.test)
 
 ml.sahd = ml.poisson1;
-#cat("Ein con el modelo LR: "); 
-#print(ml1$call)
-#print(ml1.Ein)
+
 ```
 
 Por tanto, la familia de funciones elegidas es -> la que genera menor Etest -> ml.poisson1 = poisson(log)
@@ -274,6 +279,25 @@ Hay que mirar si hace falta regularización -> ¿Se realiza mucho aprendizaje?
 Lasso -> Trata de evitar el sobreaprendizaje penalizando los coeficientes grandes -> Ventaja : además nos simplifica el modelo.
 
 Si suponemos que sí -> R proporciona una función llamada regresión lasso, el funcionamiento consiste en aplicar regresión y cuando los valores están muy cercanos a 0, los trunca directamente a 0.
+
+
+```{r, echo=F,warning=F}
+
+
+stReg <-function(datos,label,pesos){
+  suma = 0;
+   for(i in  1:nrow(datos)){
+    aux = sign(datos[i,]%*%pesos)
+    if(aux != label[i]){
+      suma = suma + 1;
+    }
+    
+  }
+  
+  return(suma / nrow(datos))
+}
+
+```
 
 ```{r, echo=F,warning=F}
   #library(glmnet)
@@ -298,13 +322,25 @@ Si suponemos que sí -> R proporciona una función llamada regresión lasso, el 
   #Cuando tiene coeficiente 0 -> la ha quitado del problema (parece q a nosotros no nos quita nada)
 
   #Utilizamos lambda.1se pues nos quita más atributos.
-  coeffs <- coef(ml_lasso, s=ml_lasso$lambda.1se)
+  coeffs.min <- coef(ml_lasso, s=ml_lasso$lambda.min)
+  coeffs.1se <- coef(ml_lasso, s = ml_lasso$lambda.1se)
   
   #Eliminamos los atributos del train  
-  coefficients <- coeffs[2:nrow(coeffs),]
-  sahd.train = sahd.train[,abs(coefficients)>0]
+  coefficients.min <- coeffs.min[1:nrow(coeffs.min),]
+  coefficients.1se <- coeffs.1se[1:nrow(coeffs.1se),]
+  #sahd.train_lasso = sahd.train[,abs(coefficients)>0]
   #Los eliminamos del test.
-  sahd.test = sahd.test[,abs(coefficients)>0]
+  #sahd.test_lasso = sahd.test[,abs(coefficients)>0]
+  
+  #Aquí hay que hacer otro método del error para calcular el error de coefficients y ver cual es mejor
+  coeffs <- rep(288,length(coefficientes.1se))
+  
+  st(ml.sahd,sahd.test,lsahd.test,ml_lasso$lambda.min)
+  
+  st(ml.sahd,sahd.test,lsahd.test,ml_lasso$lambda.1se)
+  
+  st(ml.sahd,sahd.test,lsahd.test)
+
 ```
 
 Parece ser que para un umbral medio pequeño nos quedaríamos con todas, luego no hay que aplicar regularización.
@@ -320,28 +356,23 @@ Usar regsubsets
   #library(leaps)
 
   #No le quito los atributos porque parece que va a confirmar lo que ya veníamos imaginando: PC2, PC6 y PC7 es caca
-  testing <- regsubsets(chd ~ ., data = sahd.data, nbest = 1)
 
-  #Lo hacemos teniendo en cuenta los otros
-  sahd.data = sahd.data[, abs(coefficients) > 0]
-  testing2 <- regsubsets(chd ~., data = sahd.data, nbest=1)
+  #method = "exhaustive" para que no sea greedy.
+  testing <- regsubsets(chd ~ ., data = sahd.data, nbest = 1, method = "exhaustive")
 
   #Obtenemos una tablita con los que es mejor coger.
-  summary(testing)
-  summary(testing2)
+  stesting <- summary(testing)
+  stesting
+  plot(testing)
   
-  #Más negrito cuanto más aparezca?
-  plot(testing2)
-  
-  #Vamos a comprobar que es el que menor error produce (esto es solo probando)
-  ml.1PC <-  glm(chd ~ present_famhist, family = poisson(log), data = sahd.data, subset=train)
-  calculateEtest(ml.1PC, sahd.test, lsahd.test)
-  calculateEin(ml.1PC, lsahd.train)
-  
-  length(train)
+  #Dibujar -> testing$ress
+  plot(testing$ress)
+  plot(stesting$cp)
+  plot(stesting$bic)
+
+  #
   
   
-  rows(sahd.test)
 ```
 
 ## Selección y ajuste del modelo final.
@@ -351,55 +382,109 @@ Usar regsubsets
 
 ## Estudio de la calidad del modelo.
 
+
 #Regresión
 
-```{r echo = FALSE}
+```{r echo = FALSE, warning=FALSE}
     #PREPARACIÓN DE LOS DATOS
     ozone.df <- read.table("./data/ozone", sep=",",head=T)
     summary(ozone.df)
-
-    #PREPROCESAMIENTO DE LOS DATOS <- Esto hay que hacerlo también en la regresión? No lo tengo claro
+    
     dim(ozone.df)
     
+    attach(ozone.df)
+    pairs( ~ozone + vh + wind + humidity + temp + ibh +dpg + ibt + vis + doy, data= ozone.df, col = ozone+3)
+```
 
-    #Paso 1: No hay variables cualitativas -> no problemo
-    
-    #Paso 2: No hay columnas que tengan "Status" ni redundantes (?)
-    
-    #Paso 3: Eliminación de variables con varianza 0 o muy próximas (importante para métodos sensibles a distancias)
-    
-    #Paso 4: Eliminación de atributos (en nuestro modelo no hay demasiados (creo))
-    
 
-``` 
+    #PREPROCESAMIENTO DE LOS DATOS <- Esto hay que hacerlo también en la regresión? No lo tengo claro
+    
+```{r, echo=F, warning=F}
+
+#library(caret)
+
+#No aplicamos PCA pues pierde variabilidad.
+ObjetoTrans2 = preProcess(ozone.df[,names(ozone.df)!="ozone"],method = c("BoxCox","center","scale"),thres = 0.95)
+
+# El parámetro thres indica cuántas componentes hacen falta para explicar la fracción thres de los datos
+# 1 -> 2 atributos ??????
+# 0.95 -> 8 atributos
+# 0.9 -> 7 atributos
+# 0.8 -> 6 atributos
+
+#THRES ->  cota del porcentaje de varianza acumulativa retenido por PCA.
+ObjetoTrans2
+
+ozoneTrans <- predict(ObjetoTrans2,ozone.df)
+dim(ozoneTrans)
+
+```
+
+## Preparación de conjutos de training, validación y test.
+
+```{r, echo=F, warning=F}
+  #Paso 5: Preparación de conjunto de train/test, y de las etiquetas train/test
+  ozone.data <- ozoneTrans[,-1]
+  ozone.label <- ozoneTrans[,1]
+  #sahd.label[sahd.label==0] <- -1 
+  
+  train <- sample(nrow(ozone.df),0.7*nrow(ozone.df))
+  ozone.train <- ozone.data[train,]
+  ozone.test <- ozone.data[-train,]
+  
+  #Etiquetas
+  lozone.train <- ozone.label[train]
+  lozone.test <- ozone.label[-train]
+  
+```
+
+## Selección de clases de funciones a usar
+
+lm???? No hay posibilidades de variarlo no? 
+
+
+## Regularización.
+
 
 ```{r, echo=F,warning=F}
-    #Paso 5: Preparación de conjunto de train/test
-    train <- sample(nrow(ozone.df), 0.7*nrow(ozone.df))
-    ozone.data <- ozone.df[,-1]
-    ozone.label <- ozone.df[,1]
-    
-    ozone.train <- ozone.data[train,]
-    ozone.test <- ozone.data[-train,]
-    
-    lozone.train <- ozone.label[train]
-    lozone.test <- ozone.label[-train]
+  #library(glmnet)
 
-    #Ozone es lo que vamos a estimar
-    attach(ozone.df)
-    pairs(~ozone + vh + wind + humidity + temp + ibh + dpg + ibt + vis + doy, data= ozone.df)
-    mr1 = lm(ozone ~ vh + wind + humidity + temp + ibh + dpg + ibt + vis + doy, data=ozone.df, subset=train)
-    
-    ObjetoTrans.ozone = preProcess(ozone.df[,names(ozone.df)!="ozone"],method = c("BoxCox","center","scale"),thres = 0.95)
-    ozoneTrans = predict(ObjetoTrans.ozone, ozone.df)
-    pairs(ozoneTrans)
+  #Como estamos usandl lm no le metemos familia?
+  mr_lasso <- cv.glmnet(as.matrix(ozone.train), lozone.train)
 
+  #Podemos ver los valores y varianzas
+  plot(mr_lasso)
+  plot(mr_lasso$glmnet.fit, xvar="lambda", label=TRUE)
+  #Se puede usar lambda_min o lambda_1se, q es la más grande con varianza más pequeña
+  mr_lasso$lambda.min
+  mr_lasso$lambda.1se
+
+
+  #Utilizamos lambda.1se pues nos quita más atributos.
+  coeffs2.min <- coef(mr_lasso, s=mr_lasso$lambda.min)
+  coeffs2.1se <- coef(mr_lasso, s=mr_lasso$lambda.1se)
+  
+  
+  #Hay que comprobar qué queda mejor, alguno de estos dos, o el del principio.
+  coefficients2.min <- coeffs2.min[2:nrow(coeffs2.min),]
+  coefficients2.1se <- coeffs2.1se[2:nrow(coeffs2.1se),]
+  
+   #Eliminamos los atributos del train  
+
+  #ozone.train = ozone.train[,abs(coefficients)>0]
+  #Los eliminamos del test.
+  #ozone.test = ozone.test[,abs(coefficients)>0]
+```
+
+
+```{r, echo=F,warning=F}
     
+    mr1 = lm(ozone ~ ., ozone.data, train)
     #Cálulo del Ein
-    mr1.Ein <- mean(mr1$residuals^2)
+    #mr1.Ein2 <- mean(mr1$residuals^2)
     
     mr1.pred_train = predict(mr1,type = "response")
-    mr1.Ein2 <- mean((mr1.pred_train-lozone.train)^2)
+    mr1.Ein <- mean((mr1.pred_train-lozone.train)^2)
     # Salen iguales Ein y Ein2, asi que perfe
     
     #Cálculo del Etest
@@ -426,6 +511,8 @@ Usar regsubsets
 # ibt - Potencial e incluso exponencial
 # vis - Poca correlación
 # doy - Cuadrática
+
+#Pensar relaciones no cuadráticas.
 
 mr2 = lm(ozone ~ I(vh^2) + temp + I(dpg^2) + I(ibt^2) + I(doy^2), data=ozone.df, subset=train)
 
