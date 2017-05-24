@@ -207,7 +207,11 @@ st <- function(ml, test, ltest, s=0){
   ml.pred_test = rep(0, length(ml.prob_test)) # predicciones por defecto 0
   ml.pred_test[ml.prob_test >=0.5] = 1 # >= 0.5 clase 1
   
+<<<<<<< HEAD
 
+=======
+  
+>>>>>>> f31746a3418aec793b242278e6482f1096384f3f
   ml.Etest = mean(ml.pred_test != ltest)
   
   return(list(ml.Etest, ml.pred_test))
@@ -247,14 +251,14 @@ ml.quasi1 <- glm(chd ~ ., family = quasi(link = "identity", variance = "constant
 ml.quasibinomial1 <- glm(chd ~ ., family = quasibinomial(link = "logit"), data = sahd.data, subset=train)
 
 #quasipoisson
-ml.quasipoisson1 <- glm(chd ~ ., family = quasipoisson(link = "log"), data = sahd.data, subset=train)  
+ml.quasipoisson1 <- glm(chd ~ PC1, family = quasipoisson(link = "log"), data = sahd.data, subset=train)  
 
 models <- list(ml.binomial1, ml.binomial2, ml.binomial3, ml.gaussian1, ml.gaussian2, ml.poisson1, ml.quasi1, ml.quasibinomial1, ml.quasipoisson1)
 
 testFamilies <- function(models, test, ltrain, ltest){
-  #print(models)
-  results <- matrix(nrow=length(models), ncol = 2)
 
+  results <- matrix(nrow=length(models), ncol = 2)
+  colnames(results) <- c("Ein","Eout")
   for(i in seq_along(models)){
     results[i,1] <-calculateEin(models[[i]],ltrain)[[1]]
     results[i,2] <- 
