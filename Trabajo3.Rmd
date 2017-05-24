@@ -402,11 +402,14 @@ stReg <-function(datos,label,pesos){
   
   #Aquí hay que hacer otro método del error para calcular el error de coefficients y ver cual es mejor
 
-  st(ml.sahd,sahd.test,lsahd.test,ml_lasso$lambda.min)[[1]]
+  st(ml,sahd.test,lsahd.test,ml_lasso$lambda.min)[[1]]
   
-  st(ml.sahd,sahd.test,lsahd.test,ml_lasso$lambda.1se)[[1]]
+  st(ml,sahd.test,lsahd.test,ml_lasso$lambda.1se)[[1]]
   
   st(ml.sahd,sahd.test,lsahd.test)[[1]]
+  
+  # Los tiros pueden ir por aquí para el Ereg
+  #predict(ml_lasso,as.matrix(sahd.test),type = "response", s = s)
 
 ```
 

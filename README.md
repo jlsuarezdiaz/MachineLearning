@@ -1,2 +1,2 @@
 # MachineLearning
-Prácticas de Aprendizaje Automátigo
+Prácticas de Aprendizaje Automático
