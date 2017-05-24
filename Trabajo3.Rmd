@@ -409,7 +409,7 @@ stReg <-function(datos,label,pesos){
   st(ml.sahd,sahd.test,lsahd.test)[[1]]
   
   # Los tiros pueden ir por aquí para el Ereg
-  #predict(ml_lasso,as.matrix(sahd.test),type = "response", s = s)
+  predict(ml_lasso,as.matrix(sahd.test),type = "response", s = ml_lasso$lambda.min)
 
 ```
 
