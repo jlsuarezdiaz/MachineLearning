@@ -427,6 +427,72 @@ COMENTARIOS:
   sahd.data <- sahd.data[,c(2,3,5,6,9)]
 ```
 
+
+# Transformación de atributos
+
+```{r, echo=F,warning=F}
+testPolyTransform <- function(data,label){
+  #Muestra
+  train <- sample(nrow(data),0.7*nrow(data))
+  
+  #Datos
+  data.train <- data[train,]
+  data.test <-  data[-train,]
+  
+  #Etiquetas
+  label.train <- label[train]
+  label.test <- label[-train]
+  
+  #Usamos el modelo ganador
+  ml <- glm(chd ~., family = gaussian(log), data = data, subset =train)
+  
+  models <- list(ml)
+  
+  testFamilies(models, data.test, label.train, label.test)
+  
+}
+
+testPolyTransformRep <- function(rep,data,label){
+   l <- replicate(n = rep, expr = validateFamilies(data,label))
+  #l es una matriz 3D de rep x num_modelos x 2 (Ein,Eout)
+  #l[,,i] -> experimento i-ésimo
+  #[,i,] -> Ein / Eout de cada modelo en los distintos experimentos (i=1 Ein, i=2 Eout)
+  #[i,,] -> Ein y Eout para el modelo i-ésimo en cada experimento
+  apply(FUN = mean, X = l, MARGIN = c(1,2))
+}
+
+# Devuelve un vector de coeficientes para cada atributo
+polynomialTransformGreedy <- function(data,label,max_coeff){
+  transform <- data
+  coeffs <- c()
+
+  for(i in 1:ncol(transform)){
+    bestEout <- 1
+    bestInd <- 0
+    for(j in 1:max_coeff){
+      transform[,i] <- I(data[,i])^j
+      v <- testPolyTransformRep(10,transform,label)
+      # Comparamos con Etest
+      if(v[2] < bestEout){
+        bestEout <- v[2]
+        bestInd <- j
+      }
+      cat("Attr = ",i,", Exp = ",j,", Eout = ",v[2],"\n")
+    }
+    #Nos quedamos con el mejor coeficiente obtenido para el atributo
+    transform[,i] <- I(data[,i])^bestInd
+    coeffs <- c(coeffs,bestInd)
+  }
+  # Por ser greedy con el mecanismo escogido el mejor Eout va a ser el de la última iteración
+  list(coeffs,bestEout)
+}
+```
+
+```{r, echo=F,warning=F}
+polynomialTransformGreedy(sahd.data,sahd.label,4)
+
+```
+
 ## Selección y ajuste del modelo final.
 
 
