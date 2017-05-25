@@ -1,0 +1,125 @@
+---
+title: 'Aprendizaje Autom谩tico - Cuestionario 3'
+author: "Juan Luis Su醨ez D韆z"
+date: "`r format(Sys.time(), '%d de %B de %Y')`"
+output:
+  pdf_document:
+    fig_caption: yes
+    highlight: haddock
+    toc: no
+    toc_depth: 2
+    includes:
+      in_header: mystyles.sty
+bibliography: references.bib
+fontsize: 10pt
+geometry: a4paper, top=2.5cm, bottom=2.5cm, left=3cm, right=3cm
+lang: es-ES
+linestretch: 1
+csl: ieee.csl
+---
+<!--
+Highlights: default, tango, pygments, kate, monochrome, espresso, zenburn, haddock, null
+-->
+<!--
+include-after: |2-
+  * * *
+  Esta obra se distribuye bajo una [Licencia Creative Commons Atribuci贸n-NoComercial-CompartirIgual 4.0 Internacional](http://creativecommons.org/licenses/by-nc-sa/4.0/).
+  
+mainfont: Arial
+monofont: Source Code Pro
+
+abstract: La navegaci贸n segura en Internet se extiende lentamente debido a numerosas
+  dificultades en los procesos necesarios para su implementaci贸n. En este texto se
+  explican y se analizan tres propuestas dirigidas a la difusi贸n de las comunicaciones
+  seguras y a la mejora de la certificaci贸n y la autenticaci贸n. Se observan las nuevas
+  funcionalidades que traer谩 el pr贸ximo est谩ndar HTTP/2 y se realiza un ejemplo de
+  instalaci贸n en un servidor. De la misma forma, se presenta una autoridad de certificaci贸n
+  automatizada, Let's Encrypt, y se demuestra su funcionamiento mediante las implementaciones
+  de cliente y servidor del protocolo asociado ACME. Por 煤ltimo, se explica el mecanismo
+  de verificaci贸n de identidad mediante certificados Convergence, frente a las autoridades
+  de certificaci贸n, y se muestra un ejemplo de su uso.
+  
+(Cosas que puedo a帽adir a la cabecera)
+-->
+
+<!--
+
+A帽adir imagenes:
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=10 cm]{./images/1_1.png}
+\caption{Instalaci贸n de phoronix suite.\label{fig:phinst}}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=10 cm]{./images/1_2.png}
+\caption{Lista de test disponibles.\label{fig:phtests}}
+\end{figure}
+
+-->
+
+# Cuesti髇 1
+
+
+
+## Soluci髇
+
+
+# Cuesti髇 2
+
+
+
+## Soluci髇
+
+
+# Cuesti髇 3
+
+
+
+## Soluci髇
+
+
+# Cuesti髇 4
+
+*Considerar un modelo SVM y los siguientes datos de entrenamiento: Clase-1: $\{(1,1),(2,2),(2,0)\}$, Clase-2: $\{(0,0),(1,0),(0,1)\}$*
+
+a) *Dibujar los puntos y construir por inspecci髇 el vector de pesos para el hiperplano 髉timo y el margen 髉timo.*
+
+b) *緾u醠es son los vectores soporte?*
+
+c) *Construir la soluci髇 en el espacio dual. Comparar la soluci髇 con la del apartado (a)*
+
+
+## Soluci髇
+
+
+
+# Cuesti髇 5
+
+
+
+## Soluci髇
+
+
+
+
+
+# Cuesti髇 6
+
+
+
+## Soluci髇
+
+
+
+
+# Cuesti髇 7
+
+
+
+## Soluci髇
+
+
+
