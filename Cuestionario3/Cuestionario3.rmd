@@ -1,6 +1,6 @@
 ---
 title: 'Aprendizaje Autom谩tico - Cuestionario 3'
-author: "Juan Luis Su醨ez D韆z"
+author: "Juan Luis Su?rez D?az"
 date: "`r format(Sys.time(), '%d de %B de %Y')`"
 output:
   pdf_document:
@@ -60,66 +60,138 @@ A帽adir imagenes:
 
 -->
 
-# Cuesti髇 1
+# Cuesti?n 1
 
 
 
-## Soluci髇
+## Soluci?n
 
 
-# Cuesti髇 2
-
-
-
-## Soluci髇
-
-
-# Cuesti髇 3
+# Cuesti?n 2
 
 
 
-## Soluci髇
+## Soluci?n
 
 
-# Cuesti髇 4
+# Cuesti?n 3
+
+
+
+## Soluci贸n
+
+
+# Cuesti贸n 4
 
 *Considerar un modelo SVM y los siguientes datos de entrenamiento: Clase-1: $\{(1,1),(2,2),(2,0)\}$, Clase-2: $\{(0,0),(1,0),(0,1)\}$*
 
-a) *Dibujar los puntos y construir por inspecci髇 el vector de pesos para el hiperplano 髉timo y el margen 髉timo.*
+a) *Dibujar los puntos y construir por inspecci贸n el vector de pesos para el hiperplano 贸ptimo y el margen 贸ptimo.*
 
-b) *緾u醠es son los vectores soporte?*
+b) *驴Cu谩les son los vectores soporte?*
 
-c) *Construir la soluci髇 en el espacio dual. Comparar la soluci髇 con la del apartado (a)*
+c) *Construir la soluci贸n en el espacio dual. Comparar la soluci贸n con la del apartado (a)*
+
+## Soluci贸n
+
+Asignamos la etiqueta 1 a los datos de la clase 1 y la etiqueta -1 a los datos de la clase 2. Los puntos se distribuyen de la siguiente forma:
+
+```{r, echo=F,warning=F}
+data <- matrix(nrow = 6, ncol = 2)
+data[1,] <- c(1,1)
+data[2,] <- c(2,2)
+data[3,] <- c(2,0)
+data[4,] <- c(0,0)
+data[5,] <- c(1,0)
+data[6,] <- c(0,1)
+
+label <- c(1,1,1,-1,-1,-1)
+
+plot(data,col = label + 3, pch = label + 17)
+
+```
+
+Buscamos el hiperplano 贸ptimo que separa los datos, y para ello buscamos un vector de pesos $(b w_1 w_2)$, con $w = (w_1 w_2)$ que minimice la funci贸n $\frac{1}{2}w^Tw = \frac{1}{2}(w_1^2+w_2^2)$ sujeta a las restricciones $y_n(w^Tx_n + b) \ge 1$, donde cada $x_n$ representa a un dato y cada $y_n$ su etiqueta asociada.
+
+Las restricciones que obtenemos para los puntos dados son las siguientes:
+
+\begin{eqnarray}
+  (1,1) & \to & w_1+w_2+b \ge 1 \\
+  (2,2) & \to & 2w_1 + 2w_2 + b \ge 1 \\
+  (2,0) & \to & 2w_1 + b \ge 1 \\
+  (0,0) & \to & -b \ge 1 \\
+  (1,0) & \to & -w_1 - b \ge 1 \\
+  (0,1) & \to & -w_2 - b \ge 1 
+\end{eqnarray}
+
+Sumando las inecuaciones (1) y (5), obtenemos que $w_2 \ge 2$, y sumando las inecuaciones (1) y (6) $w_1 \ge 2$. Adem谩s se verifica que $\frac{1}{2}w^Tw$ sujeta a que $w_1,w_2 \ge 2$ alcanza su m铆nimo cuando $w_1=w_2=2$. Tomando estos valores para $w$ las desigualdades anteriores quedan:
+
+\begin{eqnarray}
+  (1,1) & \to & 4+b \ge 1 \\
+  (2,2) & \to & 8 + b \ge 1 \\
+  (2,0) & \to & 4 + b \ge 1 \\
+  (0,0) & \to & b \le -1 \\
+  (1,0) & \to & b \le -3 \\
+  (0,1) & \to & b \le -3 
+\end{eqnarray}
+
+Por tanto, observamos que tomando $b = -3$ se satisfacen todas las restricciones, y adem谩s se minimiza $\frac{1}{2}w^Tw$ sobre estas restricciones. Por tanto, el vector de pesos asociados al hiperplano es $(b w_1 w_2)=(-3 2 2)$ y por tanto el hiperplano 贸ptimo que separa los datos viene dado por la ecuaci贸n $2u + 2v = 3$. En la siguiente gr谩fica se muestra la recta obtenida:
+
+```{r, echo=F,warning=F}
+coefs_recta_explicita <- function(coefs_recta_impl){
+  return(c(-coefs_recta_impl[1]/coefs_recta_impl[2],-coefs_recta_impl[3]/coefs_recta_impl[2]))
+}
+
+plot(data,col = label + 3, pch = label + 17)
+
+r <- coefs_recta_explicita(c(2,2,-3))
+abline(r[2],r[1],col = "green")
+
+```
+
+Finalmente, el margen 贸ptimo viene dado por la f贸rmula $M = \frac{1}{\|w\|} = \frac{1}{\sqrt{w_1^2+w_2^2}}=\frac{1}{\sqrt{8}}$
+
+b)
+
+Los vectores soporte son aquellos para los que la distancia al hiperplano coincide con el margen, o equivalentemente, aquellos para los que se da la igualdad en la restricci贸n asociada. Para ello,  para cada dato y con el vector de pesos obtenido $(b w_1 w_2)=(-3 2 2)$, calculamos $y_n(w^Tx_n + b)$ y vemos si es igual a 1.
+ 
+
+\begin{eqnarray}
+  (1,1) & \to & w_1+w_2+b = 1 \\
+  (2,2) & \to & 2w_1 + 2w_2 + b = 5 \\
+  (2,0) & \to & 2w_1 + b = 1 \\
+  (0,0) & \to & -b = 3 \\
+  (1,0) & \to & -w_1 - b = 1 \\
+  (0,1) & \to & -w_2 - b = 1 
+\end{eqnarray}
+
+Por tanto, obtenemos que los vectores soporte son $(1,1),(2,0),(1,0)$ y $(0,1)$. En la gr谩fica anterior se comprueba que son los m谩s cercanos al hiperplano.
 
 
-## Soluci髇
+
+# Cuesti?n 5
 
 
 
-# Cuesti髇 5
-
-
-
-## Soluci髇
+## Soluci?n
 
 
 
 
 
-# Cuesti髇 6
+# Cuesti?n 6
 
 
 
-## Soluci髇
+## Soluci?n
 
 
 
 
-# Cuesti髇 7
+# Cuesti?n 7
 
 
 
-## Soluci髇
+## Soluci?n
 
 
 
