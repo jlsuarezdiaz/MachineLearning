@@ -190,14 +190,12 @@ dim(sahdTrans)
 ## Selección de clases de funciones a usar.
 
 ```{r, echo=F,warning=F}
-st <- function(ml, test, ltest, s=0){
+calculateEtest <- function(ml, test, ltest, s=0){
   #Cálculo de probabilidades
   if(s==0){
     ml.prob_test = predict(ml, test, type="response")
-
   }else{
-    ml.prob_test = predict.glm(ml, test, type = "response",s = s)
-    ml.prob_test = ml.prob_test$fit
+    ml.prob_test = predict(ml,as.matrix(test),type = "response", s = s)
   }
 
   # Etest
@@ -228,7 +226,7 @@ testFamilies <- function(models, test, ltrain, ltest){
   for(i in seq_along(models)){
     results[i,1] <-calculateEin(models[[i]],ltrain)[[1]]
     results[i,2] <- 
-      st(models[[i]],test,ltest)[[1]]
+      calculateEtest(models[[i]],test,ltest)[[1]]
   }
   
   return(results)
@@ -291,53 +289,11 @@ repValidation <- function(rep,data,label){
 # Comprobamos qué método proporciona un menor error de validación con múltiples validaciones
 repValidation(rep = 100, sahd.data, sahd.label)
 
-# Confirmamos que el modelo que mejor generaliza es el de Poisson
-#ml.sahd = ml.poisson1;
+# Confirmamos que el modelo que mejor generaliza es el la gaussiana2
+ml.sahd = ml.gaussian2 <- glm(chd ~ ., family = gaussian(log), data = sahd.data, subset=train, start=rep(0, ncol(sahd.data)+1))
+
 
 ```
-
-```{r, echo=F,warning=F}
-#Deprecated
-
-# REGRESIÓN LOGÍSTICA
-
-#binomial
-ml.binomial1 <- glm(chd ~ ., family = binomial(logit), data = sahd.data, subset=train)
-ml.binomial2 <- glm(chd ~ ., family = binomial(probit), data = sahd.data, subset=train)
-ml.binomial3 <- glm(chd ~ ., family = binomial(cauchit), data = sahd.data, subset=train)
-
-#gaussiana
-ml.gaussian1 <- glm(chd ~ ., family = gaussian(identity), data = sahd.data, subset=train)
-ml.gaussian2 <- glm(chd ~ ., family = gaussian(log), data = sahd.data, subset=train, start=rep(0, ncol(sahd.data)+1))
-#ml.gaussian3 <- glm(chd ~ ., family = gaussian(inverse), data = sahd.data, subset=train,start=rep(, ncol(sahd.data)+1)) <- no converge
-  
-#poisson
-ml.poisson1 <- glm(chd ~ ., family = poisson(log), data = sahd.data, subset=train)
-#ml.poisson2 <- glm(chd ~ ., family = poisson(identity), data = sahd.data, subset=train, start=rep(0,ncol(sahd.data)+1)) 
-#ml.poisson1 <- glm(chd ~ ., family = poisson(sqrt), data = sahd.data, subset=train, start=rep(1, ncol(sahd.data)+1))
-
-#quasi
-ml.quasi1 <- glm(chd ~ ., family = quasi(link = "identity", variance = "constant"), data = sahd.data, subset=train)
-
-#ml.quasi2 <- glm(chd ~ ., family = quasi(link = "sqrt"), data = sahd.data, subset=train, start=rep(1, ncol(sahd.data)+1)) <- hay mas, todas con el mismo error
-  
-#quasibinomial
-ml.quasibinomial1 <- glm(chd ~ ., family = quasibinomial(link = "logit"), data = sahd.data, subset=train)
-
-#quasipoisson
-ml.quasipoisson1 <- glm(chd ~ ., family = quasipoisson(link = "log"), data = sahd.data, subset=train)  
-
-models <- list(ml.binomial1, ml.binomial2, ml.binomial3, ml.gaussian1, ml.gaussian2, ml.poisson1, ml.quasi1, ml.quasibinomial1, ml.quasipoisson1)
-
-
-  
-testFamilies(models, sahd.test, lsahd.train, lsahd.test)
-
-ml.sahd = ml.poisson1;
-
-```
-
-Por tanto, la familia de funciones elegidas es -> la que genera menor Etest -> ml.poisson1 = poisson(log)
 
 ## Regularización.
 
@@ -351,7 +307,7 @@ Si suponemos que sí -> R proporciona una función llamada regresión lasso, el 
 ```{r, echo=F,warning=F}
 
 
-stReg <-function(datos,label,pesos){
+calculateEtestReg <-function(datos,label,pesos){
   suma = 0;
    for(i in  1:nrow(datos)){
     aux = sign(datos[i,]%*%pesos)
@@ -373,9 +329,38 @@ stReg <-function(datos,label,pesos){
   #En la documentación aqui parece que haya más families.
 
   #Mediante validación cruzada sacamos el mejor lambda
-  # PREGUNTA: NO SERÍA POISSON????
-  ml_lasso <- cv.glmnet(as.matrix(sahd.train), lsahd.train, family="gaussian")
 
+  testRegularization <- function(data, label, iter = 100){
+      error1 <- 0
+      error2 <- 0
+      error3 <- 0
+      
+      for(i in 1:iter){
+          train <- sample(nrow(data),0.7*nrow(data))
+          data.train <- data[train,]
+          data.test <- data[-train,]
+          #Etiquetas
+          ldata.train <- label[train]
+          ldata.test <- label[-train]
+          
+          #Ponemos el link en las etiquetas pues a glmnet no se le puede pasar como argumento
+          ml_lasso <- cv.glmnet(as.matrix(data.train), ldata.train, family="gaussian")
+          ml = ml.gaussian2 <- glm(chd ~ ., family = gaussian(log), data = data, subset=train, start=rep(0, ncol(data)+1))
+    
+          error1 <- error1 + calculateEtest(ml_lasso,data.test,ldata.test,ml_lasso$lambda.min)[[1]]
+          error2 <- error2 +calculateEtest(ml_lasso,data.test,ldata.test,ml_lasso$lambda.1se)[[1]]
+          error3 <- error3 +calculateEtest(ml,data.test,ldata.test)[[1]]
+      }
+    
+      print(error1/100)
+      print(error2/100)
+      print(error3/100)
+  }
+
+  testRegularization(sahd.data, sahd.label, 100)
+
+  
+  #ANTIGUO -> PERO PODRIAMOS HACER GRAFICAS Y ESO
   #Podemos ver los valores y varianzas
   plot(ml_lasso)
   plot(ml_lasso$glmnet.fit, xvar="lambda", label=TRUE)
@@ -400,16 +385,8 @@ stReg <-function(datos,label,pesos){
   #Los eliminamos del test.
   #sahd.test_lasso = sahd.test[,abs(coefficients)>0]
   
-  #Aquí hay que hacer otro método del error para calcular el error de coefficients y ver cual es mejor
 
-  st(ml,sahd.test,lsahd.test,ml_lasso$lambda.min)[[1]]
-  
-  st(ml,sahd.test,lsahd.test,ml_lasso$lambda.1se)[[1]]
-  
-  st(ml.sahd,sahd.test,lsahd.test)[[1]]
-  
-  # Los tiros pueden ir por aquí para el Ereg
-  predict(ml_lasso,as.matrix(sahd.test),type = "response", s = ml_lasso$lambda.min)
+
 
 ```
 
@@ -420,6 +397,13 @@ Usando lambda1se si-> Nos elimina 3 características.
 ## Definición del modelo.
 
 Usar regsubsets
+
+COMENTARIOS:
+1- Como podemos ver en la tabla -> Los atributos que menos aparecen son sbp, adiposity, obesity y alcohol. Justo los que nos eliminaba al aplicar regularización con lambda.1se. Esto es interesting.
+
+2- Obviamente, si dibujamos plot(testing$ress), obtenemos que el error va disminuyendo a medida que usamos más atributos. La idea es hacer un balance entre el número de atributos usados y el error. Para ello utilizamos BIC: https://es.wikipedia.org/wiki/Criterio_de_informaci%C3%B3n_bayesiano.
+
+3- Por tanto, nos quedamos con el número de atributos donde la función BIC alcanza su mínimo (la penalización error/atributos) es menor. Esto es, nos quedamos con 5 atributos que se corresponden (según el esquema obtenido del regsubsets) con: tobacco, ldl, present_famhist, typea y age.
 
 ```{r, echo=F,warning=F}
   #nbest -> numero de subconjuntos de cada tamaño para almacenar (que nos devuelva solo el mejor de cada tamaño.)
@@ -440,9 +424,7 @@ Usar regsubsets
   plot(stesting$cp)
   plot(stesting$bic)
 
-  #
-  
-  
+  sahd.data <- sahd.data[,c(2,3,5,6,9)]
 ```
 
 ## Selección y ajuste del modelo final.
