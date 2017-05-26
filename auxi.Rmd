@@ -688,7 +688,7 @@ polynomialTransformGreedyRegression <- function(data,label,max_coeff, tol = 0){
     bestEout <- Inf
     bestInd <- 0
     for(j in 1:max_coeff){
-      transform[,i] <- I(data[,i])^j
+      transform[,i] <- I(data[,i]^j)
       v <- testPolyTransformRepReg(100,transform,label)
       # Comparamos con Etest
       if(v[2] + tol < bestEout){
@@ -698,7 +698,7 @@ polynomialTransformGreedyRegression <- function(data,label,max_coeff, tol = 0){
       cat("Attr = ",i,", Exp = ",j,", Eout = ",v[2],"\n")
     }
     #Nos quedamos con el mejor coeficiente obtenido para el atributo
-    transform[,i] <- I(data[,i])^bestInd
+    transform[,i] <- I(data[,i]^bestInd)
     coeffs <- c(coeffs,bestInd)
   }
   # Por ser greedy con el mecanismo escogido el mejor Eout va a ser el de la última iteración
@@ -707,7 +707,10 @@ polynomialTransformGreedyRegression <- function(data,label,max_coeff, tol = 0){
 ```
 
 ```{r, echo=F,warning=F}
-polynomialTransformGreedyRegression(ozone.data,ozone.label,4, tol = 0.01)
+l <- polynomialTransformGreedyRegression(ozone.data,ozone.label,4, tol = 0.01)
+
+cat("Vector de exponentes: ", l[[1]])
+cat("Eout estimado: ",l[[2]])
 
 ```
 
@@ -728,7 +731,8 @@ polynomialTransformGreedyRegression(ozone.data,ozone.label,4, tol = 0.01)
     
     #plot(doy,ozone, main = "doy vs mpg")
     #abline(m1$coefficients[c(1,10)])
-    
+    mr1.Ein
+    mr1.Etest
 
 ```
 
@@ -757,6 +761,8 @@ mr2 = lm(ozone ~ I(vh^2) + temp + I(dpg^2) + I(ibt^2) + I(doy^2), data=ozone.df,
     mr2.pred_test = predict(mr2, ozone.test, type="response")
     mr2.Etest <- mean((mr2.pred_test-lozone.test)^2)
     
+mr2.Ein
+mr2.Etest
 
 ```
 

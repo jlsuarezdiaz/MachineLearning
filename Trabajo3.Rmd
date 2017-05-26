@@ -5,7 +5,7 @@ date: "`r format(Sys.time(), '%d de %B de %Y')`"
 output: pdf_document
 ---
 
-```{r echo = FALSE, warnings = FALSE, results = FALSE, message = FALSE}
+```{r, echo = FALSE, warnings = FALSE, results = FALSE, message = FALSE}
     #Fijamos la semilla para obtener siempre los mismos resultados
     set.seed(123456789)
 
@@ -21,13 +21,13 @@ output: pdf_document
 
 ## Comprensión del problema a resolver.
 
-Para el problema de clasificación hemos elegido la base de datos de *South African Heart Disease*, que almacena una muestra recapituladora de hombres en alto riesgo de cardiopatía en la región de Western Cape, en Sudáfrica. Hay básicamente dos casos de CHD (0 ó 1). Algunos de los hombres que tienen CHD positivo, se han sometido a un tratamiento de reducción de la presión sanguínea, siendo los datos que aparecen en la muestra posteriores a estos tratamientos. Estos datos datan de 1983.
+Para el problema de clasificación hemos elegido la base de datos de *South African Heart Disease*, que almacena una muestra recapituladora de hombres en alto riesgo de cardiopatía en la región de Western Cape, en Sudáfrica. Hay dos casos de CHD (0 o 1). Algunos de los hombres que tienen CHD positivo, se han sometido a un tratamiento de reducción de la presión sanguínea, siendo los datos que aparecen en la muestra posteriores a estos tratamientos. Estos datos datan de 1983.
 
-Nuestra base de datos consta de 462 muestras donde cada una de ellas cuenta con 10 atributos, uno de ellos la variable de respuesta. Las diferentes atributos a tratar son:
+Nuestra base de datos consta de 462 muestras donde cada una de ellas cuenta con 10 atributos, uno de ellos la variable de respuesta. Los diferentes atributos a tratar son:
 
 - **sbp:** presión arterial sistólica. Toma valores entre 101 y 218, siendo la media 138.3. 
 - **tobacco:** tabaco acumulativo (en kg). Toma como valor mínimo 0 y máximo 31.2. En este caso la media es de 3.6356.
-- **ldl:** Lipoproteína de baja densidad (colesterol). Toma valores entre 0.98 y 15.330, siendo la media 4.74.
+- **ldl:** lipoproteína de baja densidad (colesterol). Toma valores entre 0.98 y 15.330, siendo la media 4.74.
 - **adiposidad:** adiposi Tomando valores entre 6.74 y 42.49, siendo la media de los valores 25.41.
 - **famhist:** historial familiar de cardiopatías. Toma como valores \{Present, Absent\}, habiendo del primer tipo 270 y del segundo 192.
 - **typea:** Personalidad Tipo-A (mide el grado de estrés en el día a día). Toma valores entre 13 y 78, siendo la media 53.1.
@@ -36,7 +36,7 @@ Nuestra base de datos consta de 462 muestras donde cada una de ellas cuenta con 
 - **age:** Edad de los hombres al comienzo de las pruebas. Se encuentra entre 15 y 64 años, siendo la edad media 42.82.
 - **chd:** Variable de respuesta, indica si se tiene o no alguna cardiopatía. Toma como valores \{0,1\}, siendo la media 0.3463.
 
-```{r echo = FALSE, warning=FALSE, results= FALSE, message = FALSE}
+```{r, echo = FALSE, warning=FALSE, results= FALSE, message = FALSE}
   
     #PREPARACIÓN DE LOS DATOS
     sahd <- read.table("./data/SAHD", sep=",",head=T, row.names = 1)
@@ -123,9 +123,13 @@ El algoritmo PCA (Principal Components Analysis) es un filtro no supervisado que
 
 ### Centrar y escalar.
 
-No me queda muy claro como funciona pues en internet encuentro cosas raras <- JUANLU ME FIO MASD E TI.
 
-También es conveniente centrar y escalar las variables para que no prioricen unas sobre otras, dado que para métodos que utilizaremos más adelante (regsubsets?? mirar esto) es necesario. El método *preProcess* se encargará de centrar las variables en 0 y de escalar las variables para tener varianza unitaria. Para ello, bastaría con pasar como argumento *scale* y *center* cuando llamemos al método *preProcess*.
+<!--
+No me queda muy claro como funciona pues en internet encuentro cosas raras <- JUANLU ME FIO MASD E TI.
+-->
+
+También es conveniente centrar y escalar las variables para que no prioricen unas sobre otras, dado que puede ser útil en algunos métodos que utilizaremos más adelante. Al escalar una variable lo que se está haciendo es dividir cada dato entre la desviación típica del conjunto de datos, transformándo así el conjunto de datos en un conjunto de varianza 1. En cuanto a centrar el conjunto de datos, lo que se hace es restar a cada dato la media del conjunto, transformándolo así en un conjunto de media 0. Al escalar y centrar a la vez, estamos aplicando la transformación $X \leftarrow (X-\mu)/\sigma$, normalizando así el conjunto a un conjunto de media 0 y varianza 1. Esto nos permite tener los atributos normalizados, y además manteniendo las mismas distribuciones entre los distintos atributos, como veremos más adelante en la regresión. El método *preProcess* se encargará de centrar las variables en 0 y de escalar las variables para tener varianza unitaria. Para ello, bastaría con pasar como argumento *scale* y *center* cuando llamemos al método *preProcess*.
+
 
 ### Llamada al método PreProcess.
 
@@ -140,8 +144,376 @@ sahdTrans <- predict(ObjetoTrans,sahd)
 
 ## Los conjuntos de validación, training y test usados.
 
+A continuación pasaremos a explorar los distintos modelos sobre los que resolver el problema de clasificación para nuestro conjunto de datos. El procedimiento de validación que usaremos consistirá en tomar múltiples veces distintos conjuntos de entrenamiento sobre nuestro conjunto de datos (una vez transformados), con los que aprenderemos el modelo. Usaremos el resto del conjunto como test para evaluar cómo de bien predice el modelo aprendido con nuevos datos. Las proporciones utilizadas serán del 70 % de los datos para train, y el 30 % para test.
+
+```{r, echo=F, warning=F}
+  #Paso 5: Preparación de conjunto de train/test, y de las etiquetas train/test
+  sahd.data <- sahdTrans[,-ncol(sahdTrans)]
+  sahd.label <- sahdTrans[,ncol(sahdTrans)]
+  #sahd.label[sahd.label==0] <- -1 
+  
+  
+  # ESTO NOS HACE FALTA YA ??? !!!
+  train <- sample(nrow(sahd),0.7*nrow(sahd))
+  sahd.train <- sahd.data[train,]
+  sahd.test <- sahd.data[-train,]
+  
+  #Etiquetas
+  lsahd.train <- sahd.label[train]
+  lsahd.test <- sahd.label[-train]
+  
+```
 
 
+
+```{r, echo=F,warning=F}
+# Funciones para el cálculo del error
+calculateEtest <- function(ml, test, ltest, s=0){
+  #Cálculo de probabilidades
+  if(s==0){
+    ml.prob_test = predict(ml, test, type="response")
+  }else{
+    ml.prob_test = predict(ml,as.matrix(test),type = "response", s = s)
+  }
+
+  # Etest
+  ml.pred_test = rep(0, length(ml.prob_test)) # predicciones por defecto 0
+  ml.pred_test[ml.prob_test >=0.5] = 1 # >= 0.5 clase 1
+  
+
+  ml.Etest = mean(ml.pred_test != ltest)
+  
+  return(list(ml.Etest, ml.pred_test))
+}
+
+calculateEin <- function(ml ,ltrain){
+  ml.prob_train = predict(ml, type = "response") #no tenemos que introducirle el train porque recuerda
+  # Ein
+  ml.pred_train = rep(0, length(ml.prob_train)) #predicciones por defecto 0
+  ml.pred_train[ml.prob_train >= 0.5] = 1
+    
+  ml.Ein = mean(ml.pred_train != ltrain)
+
+  return(list(ml.Ein, ml.pred_train))
+}
+
+# Función para evaluar loserrores para un conjunto de modelos.
+# Argumentos:
+# models - lista de modelos
+# test - conjunto de test
+# ltrain - etiquetas de train
+# ltest - etiquetas de test
+# Devuelve: Matriz de num_modelos x 2. Las columnas representan (Ein, Etest)
+testFamilies <- function(models, test, ltrain, ltest){
+
+  results <- matrix(nrow=length(models), ncol = 2)
+  colnames(results) <- c("Ein","Eout")
+  for(i in seq_along(models)){
+    results[i,1] <-calculateEin(models[[i]],ltrain)[[1]]
+    results[i,2] <- 
+      calculateEtest(models[[i]],test,ltest)[[1]]
+  }
+  
+  return(results)
+}
+```
+
+
+## Selección de clases de funciones a usar
+
+Los modelos que vamos a intentar ajustar son los proporcionados por las función `glm` (Generalized Linear Models) de `R`. Las familias que vamos a considerar para el ajuste son (!!!BUSCAR QUE SON !!!):
+
+- **Binomial**, con link **logit**. Regresión logística (?)
+- **Binomial**, con link **probit**.
+- **Binomial**, con link **cauchit**.
+- **Gaussiana**, con link **identity**. Regresión lineal (?)
+- **Poisson**.
+- **Quasi**.
+- **Quasibinomial.**
+- **Quasipoisson.**
+
+
+
+```{r, echo=F,warning=F}
+calculateEtest <- function(ml, test, ltest, s=0){
+  #Cálculo de probabilidades
+  if(s==0){
+    ml.prob_test = predict(ml, test, type="response")
+  }else{
+    ml.prob_test = predict(ml,as.matrix(test),type = "response", s = s)
+  }
+
+  # Etest
+  ml.pred_test = rep(0, length(ml.prob_test)) # predicciones por defecto 0
+  ml.pred_test[ml.prob_test >=0.5] = 1 # >= 0.5 clase 1
+  
+
+  ml.Etest = mean(ml.pred_test != ltest)
+  
+  return(list(ml.Etest, ml.pred_test))
+}
+
+calculateEin <- function(ml ,ltrain){
+  ml.prob_train = predict(ml, type = "response") #no tenemos que introducirle el train porque recuerda
+  # Ein
+  ml.pred_train = rep(0, length(ml.prob_train)) #predicciones por defecto 0
+  ml.pred_train[ml.prob_train >= 0.5] = 1
+    
+  ml.Ein = mean(ml.pred_train != ltrain)
+
+  return(list(ml.Ein, ml.pred_train))
+}
+
+testFamilies <- function(models, test, ltrain, ltest){
+
+  results <- matrix(nrow=length(models), ncol = 2)
+  colnames(results) <- c("Ein","Eout")
+  for(i in seq_along(models)){
+    results[i,1] <-calculateEin(models[[i]],ltrain)[[1]]
+    results[i,2] <- 
+      calculateEtest(models[[i]],test,ltest)[[1]]
+  }
+  
+  return(results)
+}
+```
+
+
+```{r, echo=F,warning=F}
+
+# Validación (una sola vez)
+validateFamilies <- function(data,label){
+  #Muestra
+  train <- sample(nrow(data),0.7*nrow(data))
+  
+  #Datos
+  data.train <- data[train,]
+  data.test <-  data[-train,]
+  
+  #Etiquetas
+  label.train <- label[train]
+  label.test <- label[-train]
+  
+  #Modelos
+  #binomial
+  ml.binomial1 <- glm(chd ~ ., family = binomial(logit), data = data, subset=train)
+  ml.binomial2 <- glm(chd ~ ., family = binomial(probit), data = data, subset=train)
+  ml.binomial3 <- glm(chd ~ ., family = binomial(cauchit), data = data, subset=train)
+  #gaussiano
+  ml.gaussian1 <- glm(chd ~ ., family = gaussian(identity), data = data, subset=train)
+  ml.gaussian2 <- glm(chd ~ ., family = gaussian(log), data = data, subset=train, start=rep(0, ncol(data)+1))
+  #poisson
+  ml.poisson1 <- glm(chd ~ ., family = poisson(log), data = data, subset=train)
+  
+  #quasi
+  ml.quasi1 <- glm(chd ~ ., family = quasi(link = "identity", variance = "constant"), data = data, subset=train)
+
+  #quasibinomial
+  ml.quasibinomial1 <- glm(chd ~ ., family = quasibinomial(link = "logit"), data = data, subset=train)
+  #quasipoisson
+  ml.quasipoisson1 <- glm(chd ~ ., family = quasipoisson(link = "log"), data = data, subset=train)  
+
+  models <- list(ml.binomial1, ml.binomial2, ml.binomial3, ml.gaussian1, ml.gaussian2, ml.poisson1, ml.quasi1, ml.quasibinomial1, ml.quasipoisson1)
+  
+  testFamilies(models, data.test, label.train, label.test)
+  
+}
+
+# Función para realizar multiples validaciones
+repValidation <- function(rep,data,label){
+  l <- replicate(n = rep, expr = validateFamilies(data,label))
+  #l es una matriz 3D de rep x num_modelos x 2 (Ein,Eout)
+  #l[,,i] -> experimento i-ésimo
+  #[,i,] -> Ein / Eout de cada modelo en los distintos experimentos (i=1 Ein, i=2 Eout)
+  #[i,,] -> Ein y Eout para el modelo i-ésimo en cada experimento
+  apply(FUN = mean, X = l, MARGIN = c(1,2))
+}
+
+```
+
+Una vez definidos los modelos y las funciones a usar, procedemos al ajuste de los distintos modelos y al análisis de sus errores:
+
+```{r, echo=F, warning=F}
+# Comprobamos qué método proporciona un menor error de validación con múltiples validaciones
+repValidation(rep = 100, sahd.data, sahd.label)
+
+# Confirmamos que el modelo que mejor generaliza es el la gaussiana2
+ml.sahd = ml.gaussian2 <- glm(chd ~ ., family = poisson(log), data = sahd.data, subset=train, start=rep(0, ncol(sahd.data)+1))
+
+
+```
+
+Obtenemos que el modelo que mejores resultados proporciona es el de Poisson. Hay que destacar que los resultados de Poisson coinciden con los de quasipoisson, pero elegimos el de Poisson ser más conocido.
+
+## Regularización
+
+A continuación nos planteamos la necesidad de regularización, sobre el mejor modelo que hemos obtenido. Para ello utilizamos la regularización lasso. (explicar, lo dejo para luego !!!)
+
+```{r, echo=F,warning=F}
+  #library(glmnet)
+  #El método para llamar a GLM con lasso (elasticnet regularization) es glmnet
+
+  #En la documentación aqui parece que haya más families.
+
+  #Mediante validación cruzada sacamos el mejor lambda
+
+  testRegularization <- function(data, label, iter = 100){
+      error1 <- 0
+      error2 <- 0
+      error3 <- 0
+      
+      for(i in 1:iter){
+          train <- sample(nrow(data),0.7*nrow(data))
+          data.train <- data[train,]
+          data.test <- data[-train,]
+          #Etiquetas
+          ldata.train <- label[train]
+          ldata.test <- label[-train]
+          
+          #Ponemos el link en las etiquetas pues a glmnet no se le puede pasar como argumento
+          ml_lasso <- cv.glmnet(as.matrix(data.train), ldata.train, family="gaussian")
+          ml = ml.gaussian2 <- glm(chd ~ ., family = gaussian(log), data = data, subset=train, start=rep(0, ncol(data)+1))
+    
+          error1 <- error1 + calculateEtest(ml_lasso,data.test,ldata.test,ml_lasso$lambda.min)[[1]]
+          error2 <- error2 +calculateEtest(ml_lasso,data.test,ldata.test,ml_lasso$lambda.1se)[[1]]
+          error3 <- error3 +calculateEtest(ml,data.test,ldata.test)[[1]]
+      }
+    
+      print(error1/100)
+      print(error2/100)
+      print(error3/100)
+  }
+
+  testRegularization(sahd.data, sahd.label, 100)
+
+  
+  #ANTIGUO -> PERO PODRIAMOS HACER GRAFICAS Y ESO
+  #Podemos ver los valores y varianzas
+  #plot(ml_lasso)
+  #plot(ml_lasso$glmnet.fit, xvar="lambda", label=TRUE)
+  #Se puede usar lambda_min o lambda_1se, q es la más grande con varianza más pequeña
+  #ml_lasso$lambda.min
+  #ml_lasso$lambda.1se
+  
+  #Interpretación de los coeficientes -> log hazard ratios, ratio de riesgo.
+  #Coeficiente positivo -> alto riesgo de suceso
+  #Coeficiente negativo -> viceversa
+  #Para q representen la "importancia" -> hay que escalarlos a varianza 1
+  #Cuando tiene coeficiente 0 -> la ha quitado del problema (parece q a nosotros no nos quita nada)
+
+  #Utilizamos lambda.1se pues nos quita más atributos.
+  #coeffs.min <- coef(ml_lasso, s=ml_lasso$lambda.min)
+  #coeffs.1se <- coef(ml_lasso, s = ml_lasso$lambda.1se)
+  
+  #Eliminamos los atributos del train  
+  #coefficients.min <- coeffs.min[1:nrow(coeffs.min),]
+  #coefficients.1se <- coeffs.1se[1:nrow(coeffs.1se),]
+  #sahd.train_lasso = sahd.train[,abs(coefficients)>0]
+  #Los eliminamos del test.
+  #sahd.test_lasso = sahd.test[,abs(coefficients)>0]
+  
+
+```
+
+## Optimización del número de atributos para el modelo seleccionado
+
+Luego (!!!)
+
+```{r, echo=F,warning=F}
+  #nbest -> numero de subconjuntos de cada tamaño para almacenar (que nos devuelva solo el mejor de cada tamaño.)
+  #library(leaps)
+
+  #No le quito los atributos porque parece que va a confirmar lo que ya veníamos imaginando: PC2, PC6 y PC7 es caca
+
+  #method = "exhaustive" para que no sea greedy.
+  testing <- regsubsets(chd ~ ., data = sahd.data, nbest = 1, method = "exhaustive")
+
+  #Obtenemos una tablita con los que es mejor coger.
+  stesting <- summary(testing)
+  stesting
+  plot(testing)
+  
+  #Dibujar -> testing$ress
+  plot(testing$ress)
+  plot(stesting$cp)
+  plot(stesting$bic)
+
+  sahd.data <- sahd.data[,c(2,3,5,6,9)]
+```
+
+## Transformación de atributos
+
+A continuación, nos planteamos la búsqueda de una transformación polinómica de los atributos para la cual nuestro modelo tenga una mayor capacidad de aprender y predecir nuestro conjunto de datos. Para ello utilizamos un algoritmo de búsqueda greedy. Para cada atributo, vamos eligiendo distintos exponentes y nos quedamos con el exponente que proporcione menor error de validación. Cuando llegamos al siguiente atributo, aplicamos el mismo procedimiento, manteniendo para los atributos anteriores el mejor exponente encontrado. Además, como cuando dos modelos proporcionan resultados similares siempre es mejor quedarse con el más simple, fijaremos una tolerancia para la cual, si no hay mejoras significativas en la nueva transformación, nos quedemos con la transformación mejor obtenida previamente, que tendrá un exponente menor y por tanto será más simple el ajuste.
+
+```{r, echo=F,warning=F}
+testPolyTransform <- function(data,label){
+  #Muestra
+  train <- sample(nrow(data),0.7*nrow(data))
+  
+  #Datos
+  data.train <- data[train,]
+  data.test <-  data[-train,]
+  
+  #Etiquetas
+  label.train <- label[train]
+  label.test <- label[-train]
+  
+  #Usamos el modelo ganador
+  ml <- glm(chd ~., family = gaussian(log), data = data, subset =train,start=rep(0, ncol(data)+1))
+  
+  models <- list(ml)
+  
+  testFamilies(models, data.test, label.train, label.test)
+  
+}
+
+testPolyTransformRep <- function(rep,data,label){
+   l <- replicate(n = rep, expr = testPolyTransform(data,label))
+  #l es una matriz 3D de rep x num_modelos x 2 (Ein,Eout)
+  #l[,,i] -> experimento i-ésimo
+  #[,i,] -> Ein / Eout de cada modelo en los distintos experimentos (i=1 Ein, i=2 Eout)
+  #[i,,] -> Ein y Eout para el modelo i-ésimo en cada experimento
+  apply(FUN = mean, X = l, MARGIN = c(1,2))
+}
+
+# Devuelve un vector de coeficientes para cada atributo
+# tol: Nivel de tolerancia: si dos Eout se diferencian en menos de Eout, escogemos el coeficiente más simple
+polynomialTransformGreedy <- function(data,label,max_coeff, tol = 0){
+  transform <- data
+  coeffs <- c()
+
+  for(i in 1:ncol(transform)){
+    bestEout <- 1
+    bestInd <- 0
+    for(j in 1:max_coeff){
+      transform[,i] <- I(data[,i]^j)
+      v <- testPolyTransformRep(100,transform,label)
+      # Comparamos con Etest
+      if(v[2] + tol < bestEout){
+        bestEout <- v[2]
+        bestInd <- j
+      }
+      cat("Attr = ",i,", Exp = ",j,", ","Ein = ", v[1], "Eout = ",v[2],"\n")
+    }
+    #Nos quedamos con el mejor coeficiente obtenido para el atributo
+    transform[,i] <- I(data[,i]^bestInd)
+    coeffs <- c(coeffs,bestInd)
+  }
+  # Por ser greedy con el mecanismo escogido el mejor Eout va a ser el de la última iteración
+  list(coeffs,bestEout)
+}
+```
+
+Aplicamos el algoritmo. Los resultados obtenidos son:
+
+```{r, echo=F,warning=F}
+l <- polynomialTransformGreedy(sahd.data,sahd.label,6, tol = 0.01)
+cat("Vector de exponentes: ", l[[1]])
+cat("Eout estimado: ",l[[2]])
+
+```
+
+Vemos que, para exponentes de hasta tamaño no se aprecian mejoras significativas con respecto a los coeficientes lineales iniciales.
 
 # Regresión. 
 
