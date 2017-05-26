@@ -124,10 +124,6 @@ El algoritmo PCA (Principal Components Analysis) es un filtro no supervisado que
 ### Centrar y escalar.
 
 
-<!--
-No me queda muy claro como funciona pues en internet encuentro cosas raras <- JUANLU ME FIO MASD E TI.
--->
-
 También es conveniente centrar y escalar las variables para que no prioricen unas sobre otras, dado que puede ser útil en algunos métodos que utilizaremos más adelante. Al escalar una variable lo que se está haciendo es dividir cada dato entre la desviación típica del conjunto de datos, transformándo así el conjunto de datos en un conjunto de varianza 1. En cuanto a centrar el conjunto de datos, lo que se hace es restar a cada dato la media del conjunto, transformándolo así en un conjunto de media 0. Al escalar y centrar a la vez, estamos aplicando la transformación $X \leftarrow (X-\mu)/\sigma$, normalizando así el conjunto a un conjunto de media 0 y varianza 1. Esto nos permite tener los atributos normalizados, y además manteniendo las mismas distribuciones entre los distintos atributos, como veremos más adelante en la regresión. El método *preProcess* se encargará de centrar las variables en 0 y de escalar las variables para tener varianza unitaria. Para ello, bastaría con pasar como argumento *scale* y *center* cuando llamemos al método *preProcess*.
 
 
@@ -153,7 +149,7 @@ A continuación pasaremos a explorar los distintos modelos sobre los que resolve
   #sahd.label[sahd.label==0] <- -1 
   
   
-  # ESTO NOS HACE FALTA YA ??? !!!
+  # ESTO NOS HACE FALTA YA ??? !!! -> Siii, porque luego para ir imprimiendo cosas llamamos a metodos sobre esto
   train <- sample(nrow(sahd),0.7*nrow(sahd))
   sahd.train <- sahd.data[train,]
   sahd.test <- sahd.data[-train,]
@@ -221,13 +217,14 @@ testFamilies <- function(models, test, ltrain, ltest){
 
 ## Selección de clases de funciones a usar
 
-Los modelos que vamos a intentar ajustar son los proporcionados por las función `glm` (Generalized Linear Models) de `R`. Las familias que vamos a considerar para el ajuste son (!!!BUSCAR QUE SON !!!):
+Los modelos que vamos a intentar ajustar son los proporcionados por la función `glm` (Generalized Linear Models) de `R`. Las familias que vamos a considerar para el ajuste son (!!!BUSCAR QUE SON !!!):
 
-- **Binomial**, con link **logit**. Regresión logística (?)
-- **Binomial**, con link **probit**.
-- **Binomial**, con link **cauchit**.
+- **Binomial**, con link **logit**. Regresión logística.
+- **Binomial**, con link **probit**. Regresión logística. (?)
+- **Binomial**, con link **cauchit**. Regresión logística. (?)
 - **Gaussiana**, con link **identity**. Regresión lineal (?)
-- **Poisson**.
+- **Gaussiana**, con link **log**.
+- **Poisson**. Regresión de Poisson. 
 - **Quasi**.
 - **Quasibinomial.**
 - **Quasipoisson.**
@@ -338,16 +335,31 @@ Una vez definidos los modelos y las funciones a usar, procedemos al ajuste de lo
 repValidation(rep = 100, sahd.data, sahd.label)
 
 # Confirmamos que el modelo que mejor generaliza es el la gaussiana2
-ml.sahd = ml.gaussian2 <- glm(chd ~ ., family = poisson(log), data = sahd.data, subset=train, start=rep(0, ncol(sahd.data)+1))
+ml.sahd <- glm(chd ~ ., family = poisson(log), data = sahd.data, subset=train, start=rep(0, ncol(sahd.data)+1))
 
 
 ```
 
-Obtenemos que el modelo que mejores resultados proporciona es el de Poisson. Hay que destacar que los resultados de Poisson coinciden con los de quasipoisson, pero elegimos el de Poisson ser más conocido.
+Obtenemos que el modelo que mejores resultados proporciona es el de Poisson. Hay que destacar que los resultados de Poisson coinciden con los de quasipoisson, pero elegimos el de Poisson por ser más conocido.
 
 ## Regularización
 
-A continuación nos planteamos la necesidad de regularización, sobre el mejor modelo que hemos obtenido. Para ello utilizamos la regularización lasso. (explicar, lo dejo para luego !!!)
+A continuación nos planteamos la necesidad de regularización, sobre el mejor modelo que hemos obtenido. Para ello utilizamos la regularización lasso (least absolute shrinkage and selection operator). Lasso es un método que lleva a cabo la regularización a la misma vez que realiza selección de características. 
+
+El objetivo se basa en reducir el error de predicción, para ello, se ocupa de reducir la función:
+
+\[
+  R(\beta) = \sum_{i=1}^{n}(y_i - x_i\omega)^2 + \lambda \sum_{i=1}^{p}|\omega_i|
+\]
+
+donde $n$ es el número de muestras y $p$ el número de atributos y $w$ el vector de pesos solución. Así, obtiene diferentes valores de $\lambda$. Entre estos valores devueltos, podemos considerar dos de ellos:
+
+- *lambda.min*, que nos devuelve el valor del menor $\lambda$ obtenido.
+- *lambda.1se*, (1se significa one-stand-error) ??????????
+
+Podemos contemplar cualquiera de estos valores de $\lambda$ para regularizar nuestro modelo. 
+
+Para contestar a la pregunta de si era necesario aplicar regularización a nuestra base de datos, realizamos 100 experimentos en los que, para diferentes subconjuntos de datos de nuestra muestra calculamos el error al regularizar con ambos valores de $\lambda$ y al no regularizar. Debemos quedarnos con el modelo que menos error presente.
 
 ```{r, echo=F,warning=F}
   #library(glmnet)
@@ -371,7 +383,7 @@ A continuación nos planteamos la necesidad de regularización, sobre el mejor m
           ldata.test <- label[-train]
           
           #Ponemos el link en las etiquetas pues a glmnet no se le puede pasar como argumento
-          ml_lasso <- cv.glmnet(as.matrix(data.train), ldata.train, family="gaussian")
+          ml_lasso <- cv.glmnet(as.matrix(data.train), ldata.train, family="poisson")
           ml = ml.gaussian2 <- glm(chd ~ ., family = gaussian(log), data = data, subset=train, start=rep(0, ncol(data)+1))
     
           error1 <- error1 + calculateEtest(ml_lasso,data.test,ldata.test,ml_lasso$lambda.min)[[1]]
@@ -386,57 +398,54 @@ A continuación nos planteamos la necesidad de regularización, sobre el mejor m
 
   testRegularization(sahd.data, sahd.label, 100)
 
-  
-  #ANTIGUO -> PERO PODRIAMOS HACER GRAFICAS Y ESO
-  #Podemos ver los valores y varianzas
-  #plot(ml_lasso)
-  #plot(ml_lasso$glmnet.fit, xvar="lambda", label=TRUE)
-  #Se puede usar lambda_min o lambda_1se, q es la más grande con varianza más pequeña
-  #ml_lasso$lambda.min
-  #ml_lasso$lambda.1se
-  
-  #Interpretación de los coeficientes -> log hazard ratios, ratio de riesgo.
-  #Coeficiente positivo -> alto riesgo de suceso
-  #Coeficiente negativo -> viceversa
-  #Para q representen la "importancia" -> hay que escalarlos a varianza 1
-  #Cuando tiene coeficiente 0 -> la ha quitado del problema (parece q a nosotros no nos quita nada)
-
-  #Utilizamos lambda.1se pues nos quita más atributos.
-  #coeffs.min <- coef(ml_lasso, s=ml_lasso$lambda.min)
-  #coeffs.1se <- coef(ml_lasso, s = ml_lasso$lambda.1se)
-  
-  #Eliminamos los atributos del train  
-  #coefficients.min <- coeffs.min[1:nrow(coeffs.min),]
-  #coefficients.1se <- coeffs.1se[1:nrow(coeffs.1se),]
-  #sahd.train_lasso = sahd.train[,abs(coefficients)>0]
-  #Los eliminamos del test.
-  #sahd.test_lasso = sahd.test[,abs(coefficients)>0]
-  
-
 ```
+
+Como podemos observar, el error medio obtenido es menor con el modelo sin regularizar, obteniendo así una respuesta negativa a la pregunta. Por tanto, seguiremos con el modelo sin regularización. <- JUANLU -> LA TIA COMENTÓ AQUI ALGO DE LAS VARIANZAS CHICAS??
+
+A modo de ampliación, comentar que el método de regularización lasso, cuando devuelve valores de $\lambda$ nulos significa que está despreciando estos atributos para la predicción. Si imprimimos los coeficientes correspondientes al valor de *lambda.1se* observamos que los atriburos que no selecciona para la predicción son: sbp, adiposity, typea, obesity y alcohol.
+
+```{r, echo=F,warning=F}
+  ml_lasso <- cv.glmnet(as.matrix(sahd.train), lsahd.train, family="poisson")
+  coeffs.1se <- coef(ml_lasso, s = ml_lasso$lambda.1se)
+  print(coeffs.1se)
+```
+
+A continuación, en la selección del número de atributos a utilizar, veremos que dichos atributos son, en efecto, algunos de los que participan en menos combinaciones "óptimas", por lo tanto, serán algunos de los menos relevantes.
 
 ## Optimización del número de atributos para el modelo seleccionado
 
-Luego (!!!)
+Para optimizar el número de atributos para el modelo seleccionado, vamos a hacer uso de la función llamada *regsubsets*, esta función junto con las opciones de *method = "exhaustive* y *nbest = 1* realizará una búsqueda exhaustiva del mejor atributo (el que produce menor error cuadrático), la mejor pareja de atributos, el mejor trío, etcétera. 
+
+El método nos proporciona el siguiente esquema en el que podemos apreciar las combinaciones de atributos elegidos.
 
 ```{r, echo=F,warning=F}
-  #nbest -> numero de subconjuntos de cada tamaño para almacenar (que nos devuelva solo el mejor de cada tamaño.)
-  #library(leaps)
-
-  #No le quito los atributos porque parece que va a confirmar lo que ya veníamos imaginando: PC2, PC6 y PC7 es caca
 
   #method = "exhaustive" para que no sea greedy.
   testing <- regsubsets(chd ~ ., data = sahd.data, nbest = 1, method = "exhaustive")
 
   #Obtenemos una tablita con los que es mejor coger.
   stesting <- summary(testing)
-  stesting
-  plot(testing)
-  
+  print(stesting$outmat)
+```
+
+En este punto nos planteamos cuántos atributos utilizar para nuestro modelo. Claramente, cuantos más atributos utilicemos menor será el error producido. Esto lo podemos corroborar dibujando la gráfica del error por mínimos cuadrados en función del número de atributos elegidos.
+
+```{r, echo=F,warning=F}
+
   #Dibujar -> testing$ress
   plot(testing$ress)
-  plot(stesting$cp)
+```
+
+Sin embargo, debemos de plantearnos qué número de atributos sería el óptimo si penalizáramos también el número de atributos utilizados. Es decir, cuándo una función que combine el error producido junto con el número de atributos utilizado se minimice. Para ello utilizamos la función *BIC*, cuya gráfica en función del número de atributos podemos observar en la siguiente gráfica: <- EXPLICAR CÓMO FUNCIONA BIC, NO LO ENTIENDO NADA BIEN 
+
+```{r, echo=F,warning=F}
+
   plot(stesting$bic)
+```
+  
+  Dicha función alcanza un mínimo con 5 atributos, por tanto, este será el número de atributos que utilizaremos para nuestro modelo.
+  
+```{r, echo=F,warning=F}
 
   sahd.data <- sahd.data[,c(2,3,5,6,9)]
 ```
@@ -514,6 +523,12 @@ cat("Eout estimado: ",l[[2]])
 ```
 
 Vemos que, para exponentes de hasta tamaño 6 no se aprecian mejoras significativas con respecto a los coeficientes lineales iniciales.
+
+## Conclusiones.
+
+Por tanto, el modelo óptimo escogido es un modelo lineal que utiliza los atributos tobacco, ldl, present_famhist, typea y age. A este conjunto de datos le aplicamos una regresión de Poisson obteniendo un error estimado del 26.46763\%. -> CONCLUSION: EL MODELO ES UN MOJONSILLO. Aqui hay que añadir mucha mucha más literatura.
+
+
 
 # Regresión. 
 
