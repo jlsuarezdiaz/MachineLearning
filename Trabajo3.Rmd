@@ -3,7 +3,10 @@ title: "Trabajo 3: AJUSTE DE MODELOS LINEALES"
 author: "Nuria Rodríguez Barroso, Juan Luis Suárez Díaz."
 date: "`r format(Sys.time(), '%d de %B de %Y')`"
 output: pdf_document
+toc: yes
 ---
+
+\clearpage
 
 ```{r, echo = FALSE, warnings = FALSE, results = FALSE, message = FALSE}
     #Fijamos la semilla para obtener siempre los mismos resultados
@@ -88,7 +91,7 @@ Para que se vea mejor el funcionamiento, vamos a elegir el atributo que presente
 Si dibujamos el histograma correspondiente al atributo con mayor asimetría, *alcohol* corroboramos que los datos se encuentran muy concentrados en los primeros valores que este atributo toma.
 
 ```{r, echo=F,warning=F}
-    hist(alcohol)
+    hist(alcohol, col = "blue")
 ```
 
 Vamos a aplicar ahora el método *BoxCox* y veremos cómo mejora la simetría del atributo.
@@ -109,8 +112,8 @@ Como observamos, no se encuentra un $\lambda$ válido para realizar la transform
   print(skewness(t_alcohol))
   
   par(mfrow = c(1,2))
-  hist(alcohol)
-  hist(t_alcohol)
+  hist(alcohol, col = "red")
+  hist(t_alcohol, col = "green")
   par(mfrow = c(1,1))
     
 ```
@@ -124,7 +127,7 @@ El algoritmo PCA (Principal Components Analysis) es un filtro no supervisado que
 ### Centrar y escalar.
 
 
-También es conveniente centrar y escalar las variables para que no prioricen unas sobre otras, dado que puede ser útil en algunos métodos que utilizaremos más adelante. Al escalar una variable lo que se está haciendo es dividir cada dato entre la desviación típica del conjunto de datos, transformándo así el conjunto de datos en un conjunto de varianza 1. En cuanto a centrar el conjunto de datos, lo que se hace es restar a cada dato la media del conjunto, transformándolo así en un conjunto de media 0. Al escalar y centrar a la vez, estamos aplicando la transformación $X \leftarrow (X-\mu)/\sigma$, normalizando así el conjunto a un conjunto de media 0 y varianza 1. Esto nos permite tener los atributos normalizados, y además manteniendo las mismas distribuciones entre los distintos atributos, como veremos más adelante en la regresión. El método *preProcess* se encargará de centrar las variables en 0 y de escalar las variables para tener varianza unitaria. Para ello, bastaría con pasar como argumento *scale* y *center* cuando llamemos al método *preProcess*.
+También es conveniente centrar y escalar las variables para que no prioricen unas sobre otras, dado que puede ser útil en algunos métodos que utilizaremos más adelante. Al escalar una variable lo que se está haciendo es dividir cada dato entre la desviación típica del conjunto de datos, transformando así el conjunto de datos en un conjunto de varianza 1. En cuanto a centrar el conjunto de datos, lo que se hace es restar a cada dato la media del conjunto, transformándolo así en un conjunto de media 0. Al escalar y centrar a la vez, estamos aplicando la transformación $X \leftarrow (X-\mu)/\sigma$, normalizando así el conjunto a un conjunto de media 0 y varianza 1. Esto nos permite tener los atributos normalizados, y además manteniendo las mismas distribuciones entre los distintos atributos, como veremos más adelante en la regresión. El método *preProcess* se encargará de centrar las variables en 0 y de escalar las variables para tener varianza unitaria. Para ello, bastaría con pasar como argumento *scale* y *center* cuando llamemos al método *preProcess*.
 
 
 ### Llamada al método PreProcess.
@@ -138,7 +141,7 @@ sahdTrans <- predict(ObjetoTrans,sahd)
 
 ```
 
-## Los conjuntos de validación, training y test usados.
+## Conjuntos de validación, training y test usados.
 
 A continuación pasaremos a explorar los distintos modelos sobre los que resolver el problema de clasificación para nuestro conjunto de datos. El procedimiento de validación que usaremos consistirá en tomar múltiples veces distintos conjuntos de entrenamiento sobre nuestro conjunto de datos (una vez transformados), con los que aprenderemos el modelo. Usaremos el resto del conjunto como test para evaluar cómo de bien predice el modelo aprendido con nuevos datos. Las proporciones utilizadas serán del 70 % de los datos para train, y el 30 % para test.
 
@@ -261,10 +264,13 @@ calculateEin <- function(ml ,ltrain){
   return(list(ml.Ein, ml.pred_train))
 }
 
-testFamilies <- function(models, test, ltrain, ltest){
+testFamilies <- function(models, test, ltrain, ltest, modelNames = NULL){
 
   results <- matrix(nrow=length(models), ncol = 2)
   colnames(results) <- c("Ein","Eout")
+  if(!is.null(modelNames)){
+    rownames(results) <- modelNames
+  }
   for(i in seq_along(models)){
     results[i,1] <-calculateEin(models[[i]],ltrain)[[1]]
     results[i,2] <- 
@@ -311,8 +317,9 @@ validateFamilies <- function(data,label){
   ml.quasipoisson1 <- glm(chd ~ ., family = quasipoisson(link = "log"), data = data, subset=train)  
 
   models <- list(ml.binomial1, ml.binomial2, ml.binomial3, ml.gaussian1, ml.gaussian2, ml.poisson1, ml.quasi1, ml.quasibinomial1, ml.quasipoisson1)
+  modelNames <- c("Binomial - Logit", "Binomial - Probit", "Binomial - Cauchit", "Gaussian - Identity", "Gaussian - Log", "Poisson", "Quasi", "Quasibinomial","Quasipoisson")
   
-  testFamilies(models, data.test, label.train, label.test)
+  testFamilies(models, data.test, label.train, label.test, modelNames)
   
 }
 
@@ -355,7 +362,7 @@ El objetivo se basa en reducir el error de predicción, para ello, se ocupa de r
 donde $n$ es el número de muestras y $p$ el número de atributos y $w$ el vector de pesos solución. Así, obtiene diferentes valores de $\lambda$. Entre estos valores devueltos, podemos considerar dos de ellos:
 
 - *lambda.min*, que nos devuelve el valor del menor $\lambda$ obtenido.
-- *lambda.1se*, (1se significa one-stand-error) ??????????
+- *lambda.1se*, valor que se obtiene, tras calcular el modelo que proporciona menor error, para el mejor modelo que tiene su error "within one standard error of that minimum error" (no entiendo esta frase !!!) (1se significa one-stand-error) ??????????
 
 Podemos contemplar cualquiera de estos valores de $\lambda$ para regularizar nuestro modelo. 
 
@@ -391,18 +398,23 @@ Para contestar a la pregunta de si era necesario aplicar regularización a nuest
           error3 <- error3 +calculateEtest(ml,data.test,ldata.test)[[1]]
       }
     
-      print(error1/100)
-      print(error2/100)
-      print(error3/100)
+      #print(error1/100)
+      #print(error2/100)
+      #print(error3/100)
+      return(c(error1/iter,error2/iter,error3/iter))
   }
 
-  testRegularization(sahd.data, sahd.label, 100)
+  l <- testRegularization(sahd.data, sahd.label, 100)
+  
+  cat("Etest con lambda min: ",l[1],"\n")
+  cat("Etest con lambda 1se: ",l[2],"\n")
+  cat("Etest con el modelo original: ",l[3],"\n")
 
 ```
 
-Como podemos observar, el error medio obtenido es menor con el modelo sin regularizar, obteniendo así una respuesta negativa a la pregunta. Por tanto, seguiremos con el modelo sin regularización. <- JUANLU -> LA TIA COMENTÓ AQUI ALGO DE LAS VARIANZAS CHICAS??
+Como podemos observar, el error medio obtenido es menor con el modelo sin regularizar, obteniendo así una respuesta negativa a la pregunta. Por tanto, seguiremos con el modelo sin regularización. <- JUANLU -> LA TIA COMENTÓ AQUI ALGO DE LAS VARIANZAS CHICAS?? NO LO SÉ :S
 
-A modo de ampliación, comentar que el método de regularización lasso, cuando devuelve valores de $\lambda$ nulos significa que está despreciando estos atributos para la predicción. Si imprimimos los coeficientes correspondientes al valor de *lambda.1se* observamos que los atriburos que no selecciona para la predicción son: sbp, adiposity, typea, obesity y alcohol.
+A modo de ampliación, comentar que el método de regularización lasso, cuando devuelve valores de $\lambda$ (ESTO SON LAMBDA??? !!!) nulos significa que está despreciando estos atributos para la predicción. Si imprimimos los coeficientes correspondientes al valor de *lambda.1se* observamos que los atriburos que no selecciona para la predicción son: sbp, adiposity, typea, obesity y alcohol.
 
 ```{r, echo=F,warning=F}
   ml_lasso <- cv.glmnet(as.matrix(sahd.train), lsahd.train, family="poisson")
@@ -428,22 +440,22 @@ El método nos proporciona el siguiente esquema en el que podemos apreciar las c
   print(stesting$outmat)
 ```
 
-En este punto nos planteamos cuántos atributos utilizar para nuestro modelo. Claramente, cuantos más atributos utilicemos menor será el error producido. Esto lo podemos corroborar dibujando la gráfica del error por mínimos cuadrados en función del número de atributos elegidos.
+En este punto nos planteamos cuántos atributos utilizar para nuestro modelo. Claramente, cuantos más atributos utilicemos menor será el error producido (solo Ein no ???!!!). Esto lo podemos corroborar dibujando la gráfica del error por mínimos cuadrados en función del número de atributos elegidos.
 
 ```{r, echo=F,warning=F}
 
   #Dibujar -> testing$ress
-  plot(testing$ress)
+  plot(testing$ress, col = "red", pch = 19, type = "b")
 ```
 
-Sin embargo, debemos de plantearnos qué número de atributos sería el óptimo si penalizáramos también el número de atributos utilizados. Es decir, cuándo una función que combine el error producido junto con el número de atributos utilizado se minimice. Para ello utilizamos la función *BIC*, cuya gráfica en función del número de atributos podemos observar en la siguiente gráfica: <- EXPLICAR CÓMO FUNCIONA BIC, NO LO ENTIENDO NADA BIEN 
+Sin embargo, debemos de plantearnos qué número de atributos sería el óptimo si penalizáramos también el número de atributos utilizados. Es decir, cuándo una función que combine el error producido junto con el número de atributos utilizado se minimiza. Para ello utilizamos la función *BIC*, cuya gráfica en función del número de atributos podemos observar a continuación: <- EXPLICAR CÓMO FUNCIONA BIC, NO LO ENTIENDO NADA BIEN <- LO HE ESCRITO EN EL NEXT PARRAF, MIRA A VER QUE TE PARECE !!!
 
 ```{r, echo=F,warning=F}
 
-  plot(stesting$bic)
+  plot(stesting$bic, col = "blue", pch = 19, type = "b")
 ```
   
-  Dicha función alcanza un mínimo con 5 atributos, por tanto, este será el número de atributos que utilizaremos para nuestro modelo.
+  El criterio BIC (Bayesian Information Criterion) se basa en seleccionar el modelo con menor función BIC asociada. La función BIC es una función que depende logarítmicamente del tamaño de la muestra $n$, el número de atributos $k$ y el estimador máximo verosímil, $\hat{L}$. Concretamente, $BIC = \ln(n)k-2\ln(\hat{L})$ Dicha función alcanza un mínimo con 5 atributos, por tanto, este será el número de atributos que utilizaremos para nuestro modelo.
   
 ```{r, echo=F,warning=F}
 
@@ -526,8 +538,7 @@ Vemos que, para exponentes de hasta tamaño 6 no se aprecian mejoras significati
 
 ## Conclusiones.
 
-Por tanto, el modelo óptimo escogido es un modelo lineal que utiliza los atributos tobacco, ldl, present_famhist, typea y age. A este conjunto de datos le aplicamos una regresión de Poisson obteniendo un error estimado del 26.46763\%. -> CONCLUSION: EL MODELO ES UN MOJONSILLO. Aqui hay que añadir mucha mucha más literatura.
-
+Por tanto, el modelo óptimo escogido es un modelo lineal que utiliza los atributos tobacco, ldl, present_famhist, typea y age. A este conjunto de datos le aplicamos una regresión de Poisson obteniendo un error estimado del 26.46763\%. -> CONCLUSION: EL MODELO ES UN MOJONSILLO. Aqui hay que añadir mucha mucha más literatura. !!!
 
 
 # Regresión. 
@@ -544,3 +555,302 @@ Para el problema de regresión hemos elegido la base de datos de *Los Ángeles O
 - **ibt:** 
 - **vis:** La visibilidad medida en millas.
 - **day:** Día del año en el que se realizó la medición.
+
+```{r echo = FALSE, warning=FALSE}
+    #PREPARACIÓN DE LOS DATOS
+    ozone.df <- read.table("./data/ozone", sep=",",head=T)
+    summary(ozone.df)
+    
+    dim(ozone.df)
+    
+    attach(ozone.df)
+
+```
+
+A continuación, se muestra una comparativa de todos los atributos 2 a 2 mediante gráficas, la cual nos puede ayudar más adelante a estimar el comportamiento no lineal de algunos atributos:
+
+```{r, echo=F,warning=F}
+
+    pairs( ~ozone + vh + wind + humidity + temp + ibh +dpg + ibt + vis + doy, data= ozone.df, col = "red")
+```
+Realmente, las gráficas que más nos interesan son las de la primera fila, puesto que muestran `ozone`, el atributo sobre el que queremos hacer regresión, en función del resto de atributos. Aunque también, el resto de gráficas nos puede permitir intuir dependencias entre atributos, lo que nos puede conducir a la eliminación de algunos cuya información ya esté presente en otro atributo.
+
+## Preprocesamiento de datos
+
+Como en el problema de regresión, procedemos a procesar los datos para reducir asimetrías, escalarlos y centrarlos. De nuevo, como trabajamos con un número pequeño de atributos, no aplicaremos PCA para la reducción de atributos.
+
+```{r, echo=F, warning=F}
+
+#library(caret)
+
+#No aplicamos PCA pues pierde variabilidad.
+ObjetoTrans2 = preProcess(ozone.df[,names(ozone.df)!="ozone"],method = c("BoxCox","center","scale"))
+
+
+
+ozoneTrans <- predict(ObjetoTrans2,ozone.df)
+#dim(ozoneTrans)
+
+```
+
+A continuación, vemos de nuevo la distribución de atributos 2 a 2 una vez preprocesados los datos. Comprobamos, como ya se comentó en la clasificación, que, aunque hayan cambiado las escalas y las posiciones de los datos en las gráficas (basta ver los valores que muestran los ejes), las formas en las que se distribuyen los datos en las gráficas siguen siendo las mismas:
+
+```{r,echo=F,warning=F}
+
+attach(ozoneTrans)
+pairs( ~ozone + vh + wind + humidity + temp + ibh +dpg + ibt + vis + doy, data= ozoneTrans, col = "blue")
+```
+
+## Conjuntos de validación, training y test usados.
+
+A continuación pasaremos a explorar los distintos modelos sobre los que resolver el problema de regresión para nuestro conjunto de datos. Al igual que en regresión, el procedimiento de validación que usaremos consistirá en tomar múltiples veces distintos conjuntos de entrenamiento sobre nuestro conjunto de datos (una vez transformados), con los que aprenderemos el modelo. Usaremos el resto del conjunto como test para evaluar cómo de bien predice el modelo aprendido con nuevos datos. Las proporciones utilizadas serán de nuevo del 70 % de los datos para train, y el 30 % para test.
+
+```{r, echo=F, warning=F}
+  #Paso 5: Preparación de conjunto de train/test, y de las etiquetas train/test
+  ozone.data <- ozoneTrans[,-1]
+  ozone.label <- ozoneTrans[,1]
+  #sahd.label[sahd.label==0] <- -1 
+  
+  train <- sample(nrow(ozone.df),0.7*nrow(ozone.df))
+  ozone.train <- ozone.data[train,]
+  ozone.test <- ozone.data[-train,]
+  
+  #Etiquetas
+  lozone.train <- ozone.label[train]
+  lozone.test <- ozone.label[-train]
+  
+```
+
+
+## Selección de clases de funciones a usar
+
+Procedemos ahora a la selección de modelos de regresión. El modelo seleccionado para este caso es el de regresión lineal clásico, que podemos utilizar en `R` mediante la función `lm`.
+
+```{r, echo=F,warning=F}
+calculateEtestRegression <- function(mr, test, ltest, s = 0){
+    if(s==0){
+      mr.pred_test = predict(mr, test, type="response")
+    }else{
+      mr.pred_test = predict(mr,as.matrix(test),type = "response", s = s)
+    }
+    #mr.pred_test = predict(mr, test, type="response")
+    mr.Etest <- mean((mr.pred_test-ltest)^2)
+    
+    return(list(mr.Etest,mr.pred_test))
+}
+
+calculateEinRegression <- function(mr ,ltrain){
+    mr.pred_train = predict(mr,type = "response")
+    mr.Ein <- mean((mr.pred_train-ltrain)^2)
+
+    return(list(mr.Ein, mr.pred_train))
+}
+
+testFamiliesRegression <- function(models, test, ltrain, ltest){
+
+  results <- matrix(nrow=length(models), ncol = 2)
+  colnames(results) <- c("Ein","Eout")
+  for(i in seq_along(models)){
+    results[i,1] <-calculateEinRegression(models[[i]],ltrain)[[1]]
+    results[i,2] <- 
+      calculateEtestRegression(models[[i]],test,ltest)[[1]]
+  }
+  
+  return(results)
+}
+```
+
+```{r, echo=F,warning=F}
+
+# Validación (una sola vez)
+validateFamiliesRegression <- function(data,label){
+  #Muestra
+  train <- sample(nrow(data),0.7*nrow(data))
+  
+  #Datos
+  data.train <- data[train,]
+  data.test <-  data[-train,]
+  
+  #Etiquetas
+  label.train <- label[train]
+  label.test <- label[-train]
+  
+  #Modelos
+  mr1 = lm(ozone ~ ., data, train)
+
+
+  models <- list(mr1)
+  
+  testFamiliesRegression(models, data.test, label.train, label.test)
+  
+}
+
+# Función para realizar multiples validaciones
+repValidationRegression <- function(rep,data,label){
+  l <- replicate(n = rep, expr = validateFamiliesRegression(data,label))
+  #l es una matriz 3D de rep x num_modelos x 2 (Ein,Eout)
+  #l[,,i] -> experimento i-ésimo
+  #[,i,] -> Ein / Eout de cada modelo en los distintos experimentos (i=1 Ein, i=2 Eout)
+  #[i,,] -> Ein y Eout para el modelo i-ésimo en cada experimento
+  apply(FUN = mean, X = l, MARGIN = c(1,2))
+}
+
+```
+
+Una vez definido el modelo, procedemos a su ajuste y al análisis de los errores obtenidos:
+
+```{r, echo=F,warning=F}
+  repValidationRegression(100,ozone.data,ozone.label)
+```
+
+
+## Regularización.
+
+
+```{r, echo=F,warning=F}
+
+testRegularizationRegression <- function(data, label, iter = 100){
+      error1 <- 0
+      error2 <- 0
+      error3 <- 0
+      
+      for(i in 1:iter){
+          train <- sample(nrow(data),0.7*nrow(data))
+          data.train <- data[train,]
+          data.test <- data[-train,]
+          #Etiquetas
+          ldata.train <- label[train]
+          ldata.test <- label[-train]
+          
+          #Ponemos el link en las etiquetas pues a glmnet no se le puede pasar como argumento
+          #grid=10^seq(10,-2,length=100)
+          ml_lasso <- cv.glmnet(as.matrix(data.train), ldata.train)
+          ml = lm(ozone ~ ., data, train)
+    
+          error1 <- error1 + calculateEtestRegression(ml_lasso,data.test,ldata.test,ml_lasso$lambda.min)[[1]]
+          error2 <- error2 +calculateEtestRegression(ml_lasso,data.test,ldata.test,ml_lasso$lambda.1se)[[1]]
+          error3 <- error3 +calculateEtestRegression(ml,data.test,ldata.test)[[1]]
+      }
+    
+      #print(error1/iter)
+      #print(error2/iter)
+      #print(error3/iter)
+      return(c(error1/iter,error2/iter,error3/iter))
+  }
+```
+
+```{r, echo=F,warning=F}
+  #library(glmnet)
+
+
+  l <- testRegularizationRegression(ozone.data, ozone.label, 100)
+
+  cat("Etest con lambda min: ",l[1],"\n")
+  cat("Etest con lambda 1se: ",l[2],"\n")
+  cat("Etest con el modelo original: ",l[3],"\n")
+
+  #Como el error ha disminuido usando lambda.min
+  grid=10^seq(10,-2,length=100)
+  mr_lasso <- cv.glmnet(as.matrix(ozone.train), lozone.train, lambda = grid)
+  best_lambda = mr_lasso$lambda.min
+  
+
+```
+
+```{r, echo=F,warning=F}
+  #nbest -> numero de subconjuntos de cada tamaño para almacenar (que nos devuelva solo el mejor de cada tamaño.)
+  #library(leaps)
+
+  #No le quito los atributos porque parece que va a confirmar lo que ya veníamos imaginando: PC2, PC6 y PC7 es caca
+
+  #method = "exhaustive" para que no sea greedy.
+  testing <- regsubsets(ozone ~ ., data = ozone.data, nbest = 1, method = "exhaustive")
+
+  #Obtenemos una tablita con los que es mejor coger.
+  stesting <- summary(testing)
+  stesting
+  plot(testing)
+  
+  #Dibujar -> testing$ress
+  plot(testing$ress)
+  plot(stesting$cp)
+  plot(stesting$bic)
+  
+  #ozone.data <- ozone.data[c(3,4,5,7,8,9)]
+
+```
+
+
+## Transformación de atributos
+
+Como hicimos en clasificación, procedemos ahora a buscar transformaciones polinómicas que permitan un mejor ajuste de los datos, recurriendo para ello al mismo algoritmo greedy utilizado en clasificación.
+
+```{r, echo=F,warning=F}
+testPolyTransformRegression <- function(data,label){
+  #Muestra
+  train <- sample(nrow(data),0.7*nrow(data))
+  
+  #Datos
+  data.train <- data[train,]
+  data.test <-  data[-train,]
+  
+  #Etiquetas
+  label.train <- label[train]
+  label.test <- label[-train]
+  
+  #Usamos el modelo ganador
+  mr <- lm(ozone ~ ., data, train)
+  
+  models <- list(mr)
+  
+  testFamiliesRegression(models, data.test, label.train, label.test)
+  
+}
+
+testPolyTransformRepReg <- function(rep,data,label){
+   l <- replicate(n = rep, expr = testPolyTransformRegression(data,label))
+  #l es una matriz 3D de rep x num_modelos x 2 (Ein,Eout)
+  #l[,,i] -> experimento i-ésimo
+  #[,i,] -> Ein / Eout de cada modelo en los distintos experimentos (i=1 Ein, i=2 Eout)
+  #[i,,] -> Ein y Eout para el modelo i-ésimo en cada experimento
+  apply(FUN = mean, X = l, MARGIN = c(1,2))
+}
+
+# Devuelve un vector de coeficientes para cada atributo
+# tol: Nivel de tolerancia: si dos Eout se diferencian en menos de Eout, escogemos el coeficiente más simple
+polynomialTransformGreedyRegression <- function(data,label,max_coeff, tol = 0){
+  transform <- data
+  coeffs <- c()
+
+  for(i in 1:ncol(transform)){
+    bestEout <- Inf
+    bestInd <- 0
+    for(j in 1:max_coeff){
+      transform[,i] <- I(data[,i]^j)
+      v <- testPolyTransformRepReg(100,transform,label)
+      # Comparamos con Etest
+      if(v[2] + tol < bestEout){
+        bestEout <- v[2]
+        bestInd <- j
+      }
+      cat("Attr = ",i,", Exp = ",j,"Ein = ",v[1], ", Eout = ",v[2],"\n")
+    }
+    #Nos quedamos con el mejor coeficiente obtenido para el atributo
+    transform[,i] <- I(data[,i]^bestInd)
+    coeffs <- c(coeffs,bestInd)
+  }
+  # Por ser greedy con el mecanismo escogido el mejor Eout va a ser el de la última iteración
+  list(coeffs,bestEout)
+}
+```
+
+```{r, echo=F,warning=F}
+l <- polynomialTransformGreedyRegression(ozone.data,ozone.label,4, tol = 0.01)
+
+cat("Vector de exponentes: ", l[[1]],"\n")
+cat("Eout estimado: ",l[[2]],"\n")
+
+```
+
+En este caso vemos que sí hay transformaciones polinómicas que mejoran el ajuste.
+
