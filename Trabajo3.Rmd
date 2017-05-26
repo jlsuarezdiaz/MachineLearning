@@ -554,8 +554,13 @@ Comparando con la gráfica anterior comprobamos que, aunque los datos se hayan e
 ## Selección de clases de funciones a usar
 
 ```{r, echo=F,warning=F}
-calculateEtestRegression <- function(mr, test, ltest){
-    mr.pred_test = predict(mr, test, type="response")
+calculateEtestRegression <- function(mr, test, ltest, s = 0){
+    if(s==0){
+      mr.pred_test = predict(mr, test, type="response")
+    }else{
+      mr.pred_test = predict(mr,as.matrix(test),type = "response", s = s)
+    }
+    #mr.pred_test = predict(mr, test, type="response")
     mr.Etest <- mean((mr.pred_test-ltest)^2)
     
     return(list(mr.Etest,mr.pred_test))
@@ -631,6 +636,36 @@ lm???? No hay posibilidades de variarlo no?
 
 
 ```{r, echo=F,warning=F}
+
+testRegularizationRegression <- function(data, label, iter = 100){
+      error1 <- 0
+      error2 <- 0
+      error3 <- 0
+      
+      for(i in 1:iter){
+          train <- sample(nrow(data),0.7*nrow(data))
+          data.train <- data[train,]
+          data.test <- data[-train,]
+          #Etiquetas
+          ldata.train <- label[train]
+          ldata.test <- label[-train]
+          
+          #Ponemos el link en las etiquetas pues a glmnet no se le puede pasar como argumento
+          ml_lasso <- cv.glmnet(as.matrix(data.train), ldata.train)
+          ml = lm(ozone ~ ., data, train)
+    
+          error1 <- error1 + calculateEtestRegression(ml_lasso,data.test,ldata.test,ml_lasso$lambda.min)[[1]]
+          error2 <- error2 +calculateEtestRegression(ml_lasso,data.test,ldata.test,ml_lasso$lambda.1se)[[1]]
+          error3 <- error3 +calculateEtestRegression(ml,data.test,ldata.test)[[1]]
+      }
+    
+      print(error1/iter)
+      print(error2/iter)
+      print(error3/iter)
+  }
+```
+
+```{r, echo=F,warning=F}
   #library(glmnet)
 
   #Como estamos usandl lm no le metemos familia?
@@ -642,6 +677,9 @@ lm???? No hay posibilidades de variarlo no?
   #Se puede usar lambda_min o lambda_1se, q es la más grande con varianza más pequeña
   mr_lasso$lambda.min
   mr_lasso$lambda.1se
+  
+  testRegularizationRegression(ozone.data, ozone.label, 100)
+
 
 
   #Utilizamos lambda.1se pues nos quita más atributos.
