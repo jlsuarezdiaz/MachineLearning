@@ -304,23 +304,7 @@ Lasso -> Trata de evitar el sobreaprendizaje penalizando los coeficientes grande
 Si suponemos que sí -> R proporciona una función llamada regresión lasso, el funcionamiento consiste en aplicar regresión y cuando los valores están muy cercanos a 0, los trunca directamente a 0.
 
 
-```{r, echo=F,warning=F}
 
-
-calculateEtestReg <-function(datos,label,pesos){
-  suma = 0;
-   for(i in  1:nrow(datos)){
-    aux = sign(datos[i,]%*%pesos)
-    if(aux != label[i]){
-      suma = suma + 1;
-    }
-    
-  }
-  
-  return(suma / nrow(datos))
-}
-
-```
 
 ```{r, echo=F,warning=F}
   #library(glmnet)
@@ -444,7 +428,7 @@ testPolyTransform <- function(data,label){
   label.test <- label[-train]
   
   #Usamos el modelo ganador
-  ml <- glm(chd ~., family = gaussian(log), data = data, subset =train)
+  ml <- glm(chd ~., family = gaussian(log), data = data, subset =train,start=rep(0, ncol(data)+1))
   
   models <- list(ml)
   
@@ -453,7 +437,7 @@ testPolyTransform <- function(data,label){
 }
 
 testPolyTransformRep <- function(rep,data,label){
-   l <- replicate(n = rep, expr = validateFamilies(data,label))
+   l <- replicate(n = rep, expr = testPolyTransform(data,label))
   #l es una matriz 3D de rep x num_modelos x 2 (Ein,Eout)
   #l[,,i] -> experimento i-ésimo
   #[,i,] -> Ein / Eout de cada modelo en los distintos experimentos (i=1 Ein, i=2 Eout)
@@ -462,7 +446,8 @@ testPolyTransformRep <- function(rep,data,label){
 }
 
 # Devuelve un vector de coeficientes para cada atributo
-polynomialTransformGreedy <- function(data,label,max_coeff){
+# tol: Nivel de tolerancia: si dos Eout se diferencian en menos de Eout, escogemos el coeficiente más simple
+polynomialTransformGreedy <- function(data,label,max_coeff, tol = 0){
   transform <- data
   coeffs <- c()
 
@@ -471,9 +456,9 @@ polynomialTransformGreedy <- function(data,label,max_coeff){
     bestInd <- 0
     for(j in 1:max_coeff){
       transform[,i] <- I(data[,i])^j
-      v <- testPolyTransformRep(10,transform,label)
+      v <- testPolyTransformRep(100,transform,label)
       # Comparamos con Etest
-      if(v[2] < bestEout){
+      if(v[2] + tol < bestEout){
         bestEout <- v[2]
         bestInd <- j
       }
@@ -489,7 +474,7 @@ polynomialTransformGreedy <- function(data,label,max_coeff){
 ```
 
 ```{r, echo=F,warning=F}
-polynomialTransformGreedy(sahd.data,sahd.label,4)
+polynomialTransformGreedy(sahd.data,sahd.label,4, tol = 0.01)
 
 ```
 
@@ -511,7 +496,7 @@ polynomialTransformGreedy(sahd.data,sahd.label,4)
     dim(ozone.df)
     
     attach(ozone.df)
-    pairs( ~ozone + vh + wind + humidity + temp + ibh +dpg + ibt + vis + doy, data= ozone.df, col = ozone+3)
+    pairs( ~ozone + vh + wind + humidity + temp + ibh +dpg + ibt + vis + doy, data= ozone.df, col = "blue")
 ```
 
 
@@ -538,6 +523,16 @@ dim(ozoneTrans)
 
 ```
 
+Volvemos a comparar todas las gráficas d parejas de atributos tras preprocesar los datos.
+
+```{r,echo=F,warning=F}
+
+attach(ozoneTrans)
+pairs( ~ozone + vh + wind + humidity + temp + ibh +dpg + ibt + vis + doy, data= ozoneTrans, col = "blue")
+```
+
+Comparando con la gráfica anterior comprobamos que, aunque los datos se hayan escalado, la forma en la que se distribuyen los datos sigue siendo la misma.
+
 ## Preparación de conjutos de training, validación y test.
 
 ```{r, echo=F, warning=F}
@@ -558,11 +553,117 @@ dim(ozoneTrans)
 
 ## Selección de clases de funciones a usar
 
+```{r, echo=F,warning=F}
+calculateEtestRegression <- function(mr, test, ltest, s = 0){
+    if(s==0){
+      mr.pred_test = predict(mr, test, type="response")
+    }else{
+      mr.pred_test = predict(mr,as.matrix(test),type = "response", s = s)
+    }
+    #mr.pred_test = predict(mr, test, type="response")
+    mr.Etest <- mean((mr.pred_test-ltest)^2)
+    
+    return(list(mr.Etest,mr.pred_test))
+}
+
+calculateEinRegression <- function(mr ,ltrain){
+    mr.pred_train = predict(mr,type = "response")
+    mr.Ein <- mean((mr.pred_train-ltrain)^2)
+
+    return(list(mr.Ein, mr.pred_train))
+}
+
+testFamiliesRegression <- function(models, test, ltrain, ltest){
+
+  results <- matrix(nrow=length(models), ncol = 2)
+  colnames(results) <- c("Ein","Eout")
+  for(i in seq_along(models)){
+    results[i,1] <-calculateEinRegression(models[[i]],ltrain)[[1]]
+    results[i,2] <- 
+      calculateEtestRegression(models[[i]],test,ltest)[[1]]
+  }
+  
+  return(results)
+}
+```
+
+```{r, echo=F,warning=F}
+
+# Validación (una sola vez)
+validateFamiliesRegression <- function(data,label){
+  #Muestra
+  train <- sample(nrow(data),0.7*nrow(data))
+  
+  #Datos
+  data.train <- data[train,]
+  data.test <-  data[-train,]
+  
+  #Etiquetas
+  label.train <- label[train]
+  label.test <- label[-train]
+  
+  #Modelos
+  mr1 = lm(ozone ~ ., data, train)
+
+
+  models <- list(mr1)
+  
+  testFamiliesRegression(models, data.test, label.train, label.test)
+  
+}
+
+# Función para realizar multiples validaciones
+repValidationRegression <- function(rep,data,label){
+  l <- replicate(n = rep, expr = validateFamiliesRegression(data,label))
+  #l es una matriz 3D de rep x num_modelos x 2 (Ein,Eout)
+  #l[,,i] -> experimento i-ésimo
+  #[,i,] -> Ein / Eout de cada modelo en los distintos experimentos (i=1 Ein, i=2 Eout)
+  #[i,,] -> Ein y Eout para el modelo i-ésimo en cada experimento
+  apply(FUN = mean, X = l, MARGIN = c(1,2))
+}
+
+```
+
+
+```{r, echo=F,warning=F}
+  repValidationRegression(100,ozone.data,ozone.label)
+```
+
 lm???? No hay posibilidades de variarlo no? 
 
 
-## Regularización.
+## Regularización (pendiente).
 
+
+```{r, echo=F,warning=F}
+
+testRegularizationRegression <- function(data, label, iter = 100){
+      error1 <- 0
+      error2 <- 0
+      error3 <- 0
+      
+      for(i in 1:iter){
+          train <- sample(nrow(data),0.7*nrow(data))
+          data.train <- data[train,]
+          data.test <- data[-train,]
+          #Etiquetas
+          ldata.train <- label[train]
+          ldata.test <- label[-train]
+          
+          #Ponemos el link en las etiquetas pues a glmnet no se le puede pasar como argumento
+          ml_lasso <- cv.glmnet(as.matrix(data.train), ldata.train)
+          ml = lm(ozone ~ ., data, train)
+    
+          error1 <- error1 + calculateEtestRegression(ml_lasso,data.test,ldata.test,ml_lasso$lambda.min)[[1]]
+          error2 <- error2 +calculateEtestRegression(ml_lasso,data.test,ldata.test,ml_lasso$lambda.1se)[[1]]
+          error3 <- error3 +calculateEtestRegression(ml,data.test,ldata.test)[[1]]
+      }
+    
+      print(error1/iter)
+      print(error2/iter)
+      print(error3/iter)
+  }
+```
 
 ```{r, echo=F,warning=F}
   #library(glmnet)
@@ -576,6 +677,9 @@ lm???? No hay posibilidades de variarlo no?
   #Se puede usar lambda_min o lambda_1se, q es la más grande con varianza más pequeña
   mr_lasso$lambda.min
   mr_lasso$lambda.1se
+  
+  testRegularizationRegression(ozone.data, ozone.label, 100)
+
 
 
   #Utilizamos lambda.1se pues nos quita más atributos.
@@ -592,6 +696,95 @@ lm???? No hay posibilidades de variarlo no?
   #ozone.train = ozone.train[,abs(coefficients)>0]
   #Los eliminamos del test.
   #ozone.test = ozone.test[,abs(coefficients)>0]
+```
+
+```{r, echo=F,warning=F}
+  #nbest -> numero de subconjuntos de cada tamaño para almacenar (que nos devuelva solo el mejor de cada tamaño.)
+  #library(leaps)
+
+  #No le quito los atributos porque parece que va a confirmar lo que ya veníamos imaginando: PC2, PC6 y PC7 es caca
+
+  #method = "exhaustive" para que no sea greedy.
+  testing <- regsubsets(ozone ~ ., data = ozone.data, nbest = 1, method = "exhaustive")
+
+  #Obtenemos una tablita con los que es mejor coger.
+  stesting <- summary(testing)
+  stesting
+  plot(testing)
+  
+  #Dibujar -> testing$ress
+  plot(testing$ress)
+  plot(stesting$cp)
+  plot(stesting$bic)
+  
+  ozone.data <- ozone.data[c(3,4,5,7,8,9)]
+
+```
+
+## Transformación de atributos
+
+```{r, echo=F,warning=F}
+testPolyTransformRegression <- function(data,label){
+  #Muestra
+  train <- sample(nrow(data),0.7*nrow(data))
+  
+  #Datos
+  data.train <- data[train,]
+  data.test <-  data[-train,]
+  
+  #Etiquetas
+  label.train <- label[train]
+  label.test <- label[-train]
+  
+  #Usamos el modelo ganador
+  mr <- lm(ozone ~ ., data, train)
+  
+  models <- list(mr)
+  
+  testFamiliesRegression(models, data.test, label.train, label.test)
+  
+}
+
+testPolyTransformRepReg <- function(rep,data,label){
+   l <- replicate(n = rep, expr = testPolyTransformRegression(data,label))
+  #l es una matriz 3D de rep x num_modelos x 2 (Ein,Eout)
+  #l[,,i] -> experimento i-ésimo
+  #[,i,] -> Ein / Eout de cada modelo en los distintos experimentos (i=1 Ein, i=2 Eout)
+  #[i,,] -> Ein y Eout para el modelo i-ésimo en cada experimento
+  apply(FUN = mean, X = l, MARGIN = c(1,2))
+}
+
+# Devuelve un vector de coeficientes para cada atributo
+# tol: Nivel de tolerancia: si dos Eout se diferencian en menos de Eout, escogemos el coeficiente más simple
+polynomialTransformGreedyRegression <- function(data,label,max_coeff, tol = 0){
+  transform <- data
+  coeffs <- c()
+
+  for(i in 1:ncol(transform)){
+    bestEout <- Inf
+    bestInd <- 0
+    for(j in 1:max_coeff){
+      transform[,i] <- I(data[,i])^j
+      v <- testPolyTransformRepReg(100,transform,label)
+      # Comparamos con Etest
+      if(v[2] + tol < bestEout){
+        bestEout <- v[2]
+        bestInd <- j
+      }
+      cat("Attr = ",i,", Exp = ",j,", Eout = ",v[2],"\n")
+    }
+    #Nos quedamos con el mejor coeficiente obtenido para el atributo
+    transform[,i] <- I(data[,i])^bestInd
+    coeffs <- c(coeffs,bestInd)
+  }
+  # Por ser greedy con el mecanismo escogido el mejor Eout va a ser el de la última iteración
+  list(coeffs,bestEout)
+}
+```
+
+```{r, echo=F,warning=F}
+polynomialTransformGreedyRegression(ozone.data,ozone.label,4, tol = 0.01)
+
 ```
 
 
@@ -646,21 +839,27 @@ mr2 = lm(ozone ~ I(vh^2) + temp + I(dpg^2) + I(ibt^2) + I(doy^2), data=ozone.df,
 
 
 ```{r, echo=F,warning=F}
-# Idea para estimar el comportamiento del ozono respecto a cada dato
+x1 <- c(1:100,1:100)
+x2 <- 1:200
+x2[1:100] <- (x1[1:100])^2-1
+x2[101:200]<- (x1[101:200])^2+1
 
-# - Elaboramos las tablas (ozono,dato) respecto a cada dato ordenadas por ozono
-# - Calculamos el vector de cocientes (ozono[i]-ozono[i-1])/(dato[i]-dato[i-1])
-# - Estudiamos el comportamiento del vector cociente
+y <- sign(x2-x1^2)
+y[y==-1] <- 0
 
-dd <- matrix(ncol = ncol(ozone.df)-1,nrow = nrow(ozone.df)-1)
+prueba.data <- matrix(c(x1,x2,y),ncol = 3)
+colnames(prueba.data) <- c("x1","x2","y")
 
-for(j in 2:ncol(ozone.df)){
-  ddm <- matrix(c(ozone,ozone.df[,j]),ncol = 2)
-  for(i in 2:nrow(ddm)){
-    dd[i-1,j-1] <- (ddm[i,2]-ddm[i-1,2])/(ddm[i,1]-ddm[i-1,1])
-  }
-}
+plot(x1,x2, col = y +3)
 
+validateFamilies(prueba.data,y)
+train <- sample(nrow(prueba.data), 0.7*nrow(prueba.data))
+
+ml.binomial1 <- glm(y ~ ., family = gaussian(identity), data = as.data.frame(prueba.data), subset=train)
+
+calculateEin(ml.binomial1,y[train])
+
+ml.binomial1$coefficients
 
 ```
 
