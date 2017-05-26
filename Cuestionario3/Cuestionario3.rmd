@@ -60,22 +60,95 @@ Añadir imagenes:
 
 -->
 
-# Cuesti?n 1
+# Cuestión 1
+
+*Considere un modelo de red neuronal con dos capas totalmente conectadas: $n_I$ unidades de entrada, $n_H$ unidades ocultas y $n_O$ unidades de salida. Considere la función de rror definida por $J(w) = \frac{1}{2}\sum_{k=1}^{n_O}(t_k-c_k)^2=\frac{1}{2}\|t-c\|^2$, donde el vector $t$ representa los valores de la etiqueta, $c$ los valores calculados por la red y $w$ los pesos de la red. Considere que las entradas a la segunda capa se calculan como $z_k = \sum_{j=0}^{N_H}{y_jw_{kj}}$, donde el vector $y$ representa la salida de la capa oculta.*
+
+a) *Deducir con todo detalle la regla de adaptación de los pesos entre la capa oculta y la capa de salida.*
+
+b) *Deducir con todo detalle la regla de adaptación de los pesos entre la capa de entrada y la capa oculta.*
+
+*Usar $\theta$ para notar la función de activación.*
+
+## Solución
+
+La regla de adaptación de pesos para $w$, de acuerdo con el gradiente descendiente viene dada por $w \leftarrow w - \eta\nabla E_{in}(w)$, donde $\eta$ es una tasa de aprendizaje prefijada. Para calcular el gradiente debemos calcular por tanto las derivadas parciales respecto a cada elemento en el vector de pesos. Llamamos $x_i$ a los datos de entrenamiento y $t_i$ a las etiquetas. Llamamos $z_i$ a las entradas a la capa de salida y $c_i$ a las salidas de la capa de salida (y de la red neuronal). Para la capa oculta, llamamos $n_i$ a las entradas a la capa e $y_i$ a las salidas. Finalmente, llamamos $r_i$ a las salidas de la capa de entrada. Consideramos los pesos como $w_{ji}^{(k)}$, donde $j$ representa el índice de la conexión de salida, $i$ el índice de la conexión de entrada, y $k$ las capas entre las que se encuentra. Es decir, la distribución de la red es la que se muestra en la figura \ref{fig:red}. 
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=10 cm]{./images/redneuronal.jpg}
+\caption{Distribución de la red neuronal.\label{fig:red}}
+\end{figure}
+
+Calculamos la regla de adaptación de pesos para los pesos entre la capa oculta y la de salida, $w_{ji}\equiv w_{ji}^{(2)}$. Es decir, buscamos el valor de $\frac{\partial J}{\partial w_{ji}}$. Aplicando la regla de la cadena, obtenemos:
+
+\[\frac{\partial J}{\partial w_{ji}} = \frac{\partial J}{\partial c_j}\frac{\partial c_j}{\partial z_j}\frac{\partial z_j}{\partial w_{ji}}\]
+
+Calculamos las derivadas parciales anteriores:
+
+\[\frac{\partial J}{\partial c_j} = \frac{\partial }{\partial c_j}\frac{1}{2}\sum_{k=1}^{n_O}(t_k-c_k)^2 = \frac{\partial }{\partial c_j}\frac{1}{2}(t_j-c_j)^2=-(t_j-c_j)\]
+
+Para derivar $c_j$ respecto de $z_j$, utilizamos que $c_j = \theta(z_j)$:
+
+\[\frac{\partial c_j}{\partial z_j} = \frac{\partial }{\partial z_j}\theta(z_j) = \theta'(z_j)\]
+
+Finalmente, para derivar $z_j$ respecto de $w_{ji}$ usamos que $z_j = \sum_{k=0}^{N_H}{y_kw_{jk}}$:
+
+\[\frac{\partial z_j}{\partial w_{ji}} = \frac{\partial }{\partial w_{ji}}\sum_{k=0}^{N_H}{y_kw_{jk}}=\frac{\partial }{\partial w_{ji}}y_iw_{ji}=y_i\]
+
+Por tanto, la regla de adaptación de pesos para cada peso entre la capa oculta y la de salida es:
+
+\[w_{ji} \leftarrow w_{ji} +\eta(t_j-c_j)\theta'(z_j)y_i\]
+
+Ahora calculamos la regla de adaptación de pesos para cada pesos entre la capa de entrada y la oculta, $w_{ji}\equiv w_{ji}^{(1)}$. Buscamos de nuevo el valor de $\frac{\partial J}{\partial w_{ji}}$. Aplicando la regla de la cadena, obtenemos:
+
+\[\frac{\partial J}{\partial w_{ji}} = \frac{\partial J}{\partial y_j}\frac{\partial y_j}{\partial n_j}\frac{\partial n_j}{\partial w_{ji}}\]
+
+Derivamos primero $J$ respecto de $y_j$:
+
+\[\frac{\partial J}{\partial y_j} = \frac{1}{2}\frac{\partial}{\partial y_j}\sum_{k=1}^{n_O}(t_k-c_k)^2 = \frac{1}{2}\sum_{k=1}^{n_O}\frac{\partial}{\partial y_j}(t_k-c_k)^2\]
+
+Por la regla de la cadena, $\frac{\partial}{\partial y_j} = \frac{\partial}{z_k}\frac{\partial}{y_j}$, para cada $k = 1,\dots,n_O$. Aplicando esto a la expresión anterior, obtenemos:
+
+\[\frac{\partial J}{\partial y_j} = \frac{1}{2}\sum_{k=1}^{n_O}\frac{\partial}{\partial z_k}(t_k-c_k)^2\frac{\partial z_k}{\partial y_j}\]
+
+La expresión $\frac{\partial}{\partial z_k}(t_k-c_k)^2$ está calculada en el apartado anterior y vale $-(t_k-c_k)\theta'(z_k)$, mientras que $\frac{\partial z_k}{\partial y_j} = \frac{\partial}{\partial y_j}\sum_{i=0}^{N_O}y_iw_{ki} = \frac{\partial}{\partial y_j}y_jw_{kj} = w_{kj}^{(2)}$, es decir, el peso $w_{kj}$ entre las capas oculta y de salida, que ya hemos calculado en el apartado anterior. Por tanto:
+
+\[\frac{\partial J}{\partial y_j} = -\sum_{k=1}^{n_O}(t_k-c_k)\theta'(z_k)w_{kj}^{(2)}\]
+
+Finalmente, calculamos el resto de derivadas parciales de forma análoga al apartado anterior:
+
+\[\frac{\partial y_j}{\partial n_j}=\frac{\partial}{\partial n_j}\theta(n_j) = \theta'(n_j)\]
+
+\[\frac{\partial n_j}{\partial w_{ji}} = \frac{\partial}{\partial w_{ji}}\sum_{k=0}^{N_I}r_kw_{jk} = \frac{\partial}{\partial w_{ji}}r_iw_{ji} = r_i\]
+
+Por tanto, hemos obtenido que:
+
+\[\frac{\partial J}{\partial w_{ji}} = -\left[\sum_{k=1}^{n_O}(t_k-c_k)\theta'(z_k)w_{kj}^{(2)}\right]\theta'(n_j)r_i\]
+
+Luego la regla de adaptación de pesos entre la capa de entrada y la oculta es:
 
 
-
-## Soluci?n
-
-
-# Cuesti?n 2
+\[ w_{ji} \leftarrow w_{ji} + \eta\left[\sum_{k=1}^{n_O}(t_k-c_k)\theta'(z_k)w_{kj}^{(2)}\right]\theta'(n_j)r_i\]
 
 
+# Cuestión 2
 
-## Soluci?n
+*Tanto "bagging" como validación cruzada cuando se aplican sobre una muestra de datos nos permiten dar una estimación del error de un modelo ajustado a partir de dicha muestra de datos. Discuta cuál de los dos métodos considera que obtendrá una mejor estimación del error. Especificar con precisión las razones.*
+
+## Solución
 
 
-# Cuesti?n 3
+# Cuestión 3
 
+*Considere que dispone de un conjunto de datos linealmente separable. Recuerde que una vez establecido un orden sobre los datos, el algoritmo perceptron encuentra un hiperplano separador iterando sobre los datos y adaptando los pesos de acuerdo al algoritmo*
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=10 cm]{./images/pla.png}
+\end{figure}
+
+*Modificar este pseudo-código para adaptarlo a un algoritmo simple de SVM, considerando que en cada iteración adaptamos los pesos de acuerdo al caso peor clasificado de toda la muestra. Justificar adecuadamente el resultado, mostrando que al final del entrenamiento solo estaremos adaptando los vectores soporte.*
 
 
 ## Solución
@@ -168,30 +241,32 @@ Por tanto, obtenemos que los vectores soporte son $(1,1),(2,0),(1,0)$ y $(0,1)$.
 
 
 
-# Cuesti?n 5
+# Cuestión 5
 
+*Una empresa está valorando cambiar su sistema de proceso de datos, para ello dispone de dos opciones, la primera es adquirir dos nuevos sistemas idénticos al actual a 200.000 euros cada uno, y la segunda consiste en adquirir un sistema integrado por 800.000 euros. Las ventas que la empresa estima que tendrá a lo largo de la vida útil de cualquiera de sus equipos son de 5.000.000 de euros en el caso de positivo, a lo que la empresa le asigna una probabilidad de que suceda del 30 %, en caso contrario, las ventas esperadas son de 3.500.000 euros. ¿Qué opción debería de tomar la empresa?*
 
-
-## Soluci?n
-
-
-
-
-
-# Cuesti?n 6
-
-
-
-## Soluci?n
+## Solución
 
 
 
 
-# Cuesti?n 7
+
+# Cuestión 6
+
+*El método de Boosting representa una forma alternativa en la búsqueda del mejor clasificador respecto del enfoque tradicional implementado por los algoritmos PLA, SVM, NN, etc.*
+
+a) *Identifique de forma clara y concisa las novedades del enfoque.*
+b) *Diga las razones profundas por las que la técnica funciona produciendo buenos ajustes (no ponga el algoritmo).*
+c) *¿Cuál es su capacidad de generalización comparado con SVM?*
+
+## Solución
 
 
+# Cuestión 7
 
-## Soluci?n
+*¿Cuál es a su criterio lo que permite a clasificadores como Random Forest basados en un conjunto de clasificadores simples aprender de forma más eficiente? ¿Cuáles son las mejoras que introduce frente a los clasificadores simples? ¿Es Random Forest óptimo en algún sentido? Justifique con precisión las contestaciones.*
+
+## Solución
 
 
 

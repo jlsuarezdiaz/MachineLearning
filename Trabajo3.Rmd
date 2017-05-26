@@ -1,25 +1,57 @@
 ---
-title: "Trabajo 3"
-author: "Nuria Rodríguez Barroso"
+title: "Trabajo 3: AJUSTE DE MODELOS LINEALES"
+author: "Nuria Rodríguez Barroso, Juan Luis Suárez Díaz."
 date: "`r format(Sys.time(), '%d de %B de %Y')`"
 output: pdf_document
 ---
 
-```{r echo = FALSE}
+```{r echo = FALSE, warnings = FALSE, results = FALSE, message = FALSE}
     #Fijamos la semilla para obtener siempre los mismos resultados
     set.seed(123456789)
+
+    #Añadimos librerías necesarias.
+    library("caret")
+    library("e1071")
+    library("glmnet")
+    library("leaps")
+
 ```
 
 #Clasificación.
 
 ## Comprensión del problema a resolver.
 
-```{r echo = FALSE, warning=FALSE}
+Para el problema de clasificación hemos elegido la base de datos de *South African Heart Disease*, que almacena una muestra recapituladora de hombres en alto riesgo de cardiopatía en la región de Western Cape, en Sudáfrica. Hay básicamente dos casos de CHD (0 ó 1). Algunos de los hombres que tienen CHD positivo, se han sometido a un tratamiento de reducción de la presión sanguínea, siendo los datos que aparecen en la muestra posteriores a estos tratamientos. Estos datos datan de 1983.
+
+Nuestra base de datos consta de 462 muestras donde cada una de ellas cuenta con 10 atributos, uno de ellos la variable de respuesta. Las diferentes atributos a tratar son:
+
+- **sbp:** presión arterial sistólica. Toma valores entre 101 y 218, siendo la media 138.3. 
+- **tobacco:** tabaco acumulativo (en kg). Toma como valor mínimo 0 y máximo 31.2. En este caso la media es de 3.6356.
+- **ldl:** Lipoproteína de baja densidad (colesterol). Toma valores entre 0.98 y 15.330, siendo la media 4.74.
+- **adiposidad:** adiposi Tomando valores entre 6.74 y 42.49, siendo la media de los valores 25.41.
+- **famhist:** historial familiar de cardiopatías. Toma como valores \{Present, Absent\}, habiendo del primer tipo 270 y del segundo 192.
+- **typea:** Personalidad Tipo-A (mide el grado de estrés en el día a día). Toma valores entre 13 y 78, siendo la media 53.1.
+- **obesity:** Obesidad. Toma valores entre 14.7 y 46.58, siendo la media 26.04.
+- **alcohol:** Actual consumición de alcohol. Toma valores entre 0 y 147.19, encontrándose el valor medio en 17.04.
+- **age:** Edad de los hombres al comienzo de las pruebas. Se encuentra entre 15 y 64 años, siendo la edad media 42.82.
+- **chd:** Variable de respuesta, indica si se tiene o no alguna cardiopatía. Toma como valores \{0,1\}, siendo la media 0.3463.
+
+```{r echo = FALSE, warning=FALSE, results= FALSE, message = FALSE}
   
     #PREPARACIÓN DE LOS DATOS
     sahd <- read.table("./data/SAHD", sep=",",head=T, row.names = 1)
     summary(sahd)
-    
+
+```
+
+## Preprocesado de datos.
+
+Como podemos observar en el breve estudio de los diferentes atributos que vamos a trabajar, cada uno toma valores en una franja muy diferente, lo que hace primar unos atributos sobre otros en los métodos basados en distancias. Además, algunos atributos presentan una gran asimetría, lo cual también es conveniente evitar. Por estos motivos y otros más que estudiaremos a continuación, tenemos que preprocesar los datos.
+
+### Modificación de los atributos cualitativos.
+Tenemos que convertir los atributos cualitativos en atributos numéricos para que las funciones que usemos más adelante puedan trabajar con ellos. En nuestro problema concreto, solo contamos con un atributo cualitativo: *famhist*, que toma los valores \{Present, Absent\}. Convertimos este atributo en el atributo *present_famhist*, que tomará el valor 1, cuando *famhist* tomaba el valor Present y 0 en el otro caso. Así, el atributo *present_famhist* tomará valores en \{0,1\}.
+
+```{r echo = FALSE, warning=FALSE, results = FALSE, message = FALSE}
 
     #PREPROCESAMIENTO DE LOS DATOS
 
@@ -28,838 +60,100 @@ output: pdf_document
     sahd[,5] <- ifelse(sahd[,5]=='Present',1,0)
     colnames(sahd) <- c( 'sbp', 'tobacco', 'ldl', 'adiposity', 'present_famhist', 'typea', 'obesity', 'alcohol', 'age','chd')
     
-    attach(sahd)
-    pairs(~ sbp + tobacco + ldl + adiposity + present_famhist +typea + obesity + alcohol + age, data= sahd, col = chd+3)
+    #Para ir explicando una a una las transformaciones
+    sahd_aux <- sahd
+    
+    attach(sahd_aux)
+    #pairs(~ sbp + tobacco + ldl + adiposity + present_famhist +typea + obesity + alcohol + age, data= sahd, col = chd+3)
 ```
 
-## Preprocesado de datos.
+Para el resto de pasos, utilizaremos una función llamada *preProcess()*, la cual terminará con el preprocesado de los datos. Esta función realizará los siguientes cambios:
 
-```{r echo = FALSE, warning=FALSE}
-    
-    #Paso 2: No hay columnas que contengan status ni redundantes
+### Tratamiento de la asimetría con BoxCox.
 
-    #Paso 3: Eliminación de variables con varianza 0 o muy próximas (importante para métodos sensibles a distancias)
-    library("e1071")
-    
-    #skewness -> medida de la asimetría de los datos
-    skewness(sbp)
-    skewness(tobacco)
-    skewness(ldl)
-    skewness(adiposity)
-    skewness(typea)
-    skewness(obesity)
-    skewness(alcohol)
-    skewness(age)
-    skewness(present_famhist)
-
-    #Los datos más asimétricos son -> tobacco y alcohol
-    hist(tobacco)
-    hist(alcohol)
-    
-```
+Como ya hemos comentado anteriormente, hay varios atributos que presentan una alta asimetría, lo cual podría hacer que los métodos de predicción que apliquemos a continuación obtengan resultados peores. Para solucionar esto, utilizaremos un método llamado BoxCox. Este método se basa en la transformación potencial según un valor ($\lambda$) para aumentar la correlación entre las variables. Para elegir la mejor potencia (mejor $\lambda$), se busca entre los $\lambda$ que proporcionen un menor error residual. Aunque en la práctica, esto se realizará de manera automátcica con la función *preProcess()* vamos a ver cómo funciona en el caso de un atributo. 
+Para que se vea mejor el funcionamiento, vamos a elegir el atributo que presente una mayor asimetría. Para ello, ordenamos los atributos en función de su asimetría:
 
 
 ```{r, echo=F,warning=F}
+    #Eliminación de variables con varianza 0 o muy próximas (importante para métodos sensibles a distancias)
+   
+   #Ordenamos las columnas por asimetria
+    sahd_asymmetry <- apply(sahd_aux, 2, skewness)
+    sahd_asymmetry <- sort(abs(sahd_asymmetry), decreasing = T)
+    print(sahd_asymmetry)
     
-    #Ordenamos las columnas por asimetria
-    sahd_asymmetry <- apply(sahd, 2, skewness)
-    sort(abs(sahd_asymmetry), decreasing = T)
-    
-    #Una vez hemos hallado los datos con asimetría alta, aplicamos la transformación, para ello
-    library("caret")
-    
-    #Lo aplico a los que tienen skewness > 1 
-    #BoxCoxTrans no hace la transformación, devuelve el parámetro
-    BoxCoxTrans(alcohol) #No se aplica transformación pues no se ha encontrado el parámetro
-    BoxCoxTrans(tobacco) #No se aplica transformación pues no se ha encontrado el parámetro
-    ldl_trans <- BoxCoxTrans(ldl) #Se aplica transformación con lambda = 0
-    sbp_trans <- BoxCoxTrans(sbp) #Lambda estimado -1.8
-    
-    #Transformamos los datos para los que no se ha encontrado lambda añadiendo una constante
-    correction <- 1
-    c_alcohol <- alcohol + min(alcohol)+correction
-    c_tobacco <- tobacco + min(tobacco)+correction
-    alcohol_trans <- BoxCoxTrans(c_alcohol)
-    tobacco_trans <- BoxCoxTrans(c_tobacco)
-    
-    #Aplicamos la transformación a los que han devuelto un lambda
-    #predict(ldl_trans, ldl) #Aplicamos sobre solo los 10 primeros? no entiendop
-    #predict(sbp_trans, sbp)
-    
-    #Dibujamos el histograma de los datos transformados 
-    #hist(predict(ldl_trans, ldl))
-    #hist(predict(sbp_trans, head(sbp))) 
-    #hist(predict(alcohol_trans,alcohol))
-    
-    # Veamos cómo han cambiado los histogramas de los datos más asimétricos
-    t_alcohol <- predict(alcohol_trans,c_alcohol)
-    t_tobacco <- predict(tobacco_trans,c_tobacco)
-    t_ldl <- predict(ldl_trans, ldl)
-    t_sbp <- predict(sbp_trans, sbp)
-    
-    skewness(t_alcohol)
-    skewness(t_tobacco)
-    par(mfrow = c(1,2))
+```
+
+Si dibujamos el histograma correspondiente al atributo con mayor asimetría, *alcohol* corroboramos que los datos se encuentran muy concentrados en los primeros valores que este atributo toma.
+
+```{r, echo=F,warning=F}
     hist(alcohol)
-    hist(t_alcohol)
-    hist(tobacco)
-    hist(t_tobacco)
-    hist(ldl)
-    hist(t_ldl)
-    hist(sbp)
-    hist(t_sbp)
-    par(mfrow = c(1,1))
 ```
 
-```{r, echo=F, warning=F}
-    
-    #Sustituímos los datos que tenían gran asimetría por los transformados
-    ldl <- t_ldl
-    sbp <- t_sbp
-    alcohol <- t_alcohol
-    tobacco <- t_tobacco
+Vamos a aplicar ahora el método *BoxCox* y veremos cómo mejora la simetría del atributo.
+
+```{r, echo=F,warning=F}
+    BoxCoxTrans(alcohol) #No se aplica transformación pues no se ha encontrado el parámetro
+```
+
+Como observamos, no se encuentra un $\lambda$ válido para realizar la transformación, y esto se debe a que entre los valores que toma el atributo se encuentra el 0, punto en el cual no está definida la función logaritmo. Para solucionar esto, realizamos una translación de los datos de la forma: datos = min(datos) + 1 + datos, para así conseguir que el mínimo de los datos se desplace a 1. Tras realizar esta transformación obtenemos:
+
+```{r, echo=F,warning=F}
+  correction <- 1
+  c_alcohol <- alcohol + min(alcohol)+correction
+  alcohol_trans <- BoxCoxTrans(c_alcohol)
+  t_alcohol <- predict(alcohol_trans,c_alcohol)
+  
+  print("La asimetría del alcohol transformado es:")
+  print(skewness(t_alcohol))
+  
+  par(mfrow = c(1,2))
+  hist(alcohol)
+  hist(t_alcohol)
+  par(mfrow = c(1,1))
     
 ```
 
-```{r, echo=F, warning=F}
-    #Paso 4: Eliminación de atributos 
-    #center=TRUE -> indicamos que queremos que las variables sean desplazadas de forma que estén centradas en 0.
-    #scale=TRUE -> escalar las variables para que tengan varianza 1 antes del análisis.
-    pcaObject <- prcomp(sahd,center=TRUE,scale=TRUE)
+Para aplicar esta transformación a todos los atributos con el $\lambda$ correspondiente, pasaremos como parámetro al método $preProcess$ que realice el método $BoxCox$ y todo esto se hará de forma automática.
 
-    # Centros utilizados (?) no lo entiendo  muy bien
-    #head(pcaObject$center)
-    #Si pones el head te saca solo los 10 primeros
-    pcaObject$center
+### Eliminación de atributos con PCA.
 
-    #Peso en porcentajes de la varianza de cada atributo
-    porcentVariance = pcaObject$sd^2/sum(pcaObject$sd^2)*100
-    porcentVariance
-    sum(porcentVariance)
-    
-    # Datos tras rotar y escalar 
-    # Cada PCi no sé qué representa
-    pcaObject$x
-    
-    #Atributos junto a su varianza
-    plot(pcaObject,type="l")
-    
-    pcaObject$rotation
-    
+El algoritmo PCA (Principal Components Analysis) es un filtro no supervisado que es de gran utilidad cuando disponemos de una base de datos con un gran número de atributos, entre los que algunos pueden ser redundantes o irrelevantes. Como nuestra base de datos solo consta de 10 atributos, no es necesaria la aplicación de este método.
 
-```
+### Centrar y escalar.
 
-```{r, echo=F, warning=F}
-# Realizamos todo el preprocesamiento directamente con preProcess (ejecutando solo el chunk de lectura de datos para hacer esto)
-#library(caret)
+No me queda muy claro como funciona pues en internet encuentro cosas raras <- JUANLU ME FIO MASD E TI.
+
+También es conveniente centrar y escalar las variables para que no prioricen unas sobre otras, dado que para métodos que utilizaremos más adelante (regsubsets?? mirar esto) es necesario. El método *preProcess* se encargará de centrar las variables en 0 y de escalar las variables para tener varianza unitaria. Para ello, bastaría con pasar como argumento *scale* y *center* cuando llamemos al método *preProcess*.
+
+### Llamada al método PreProcess.
+
+Una vez entendidas las modificaciones que vamos a realizar a los datos, utilizaremos el método preProcess que se encarga de realizar todas estas modificaciones sobre el conjunto de datos pasado como argumento. Como ya hemos comentado, no vamos a aplicar el método *PCA*, luego la llamada quedaría de la siguiente forma:
+
+```{r, echo=T, warning=F}
 
 ObjetoTrans = preProcess(sahd[,names(sahd)!="chd"],method = c("BoxCox","center","scale"))
-
-# El parámetro thres indica cuántas componentes hacen falta para explicar la fracción thres de los datos
-# 1 -> 2 atributos ??????
-# 0.95 -> 8 atributos
-# 0.9 -> 7 atributos
-# 0.8 -> 6 atributos
-
-#THRES ->  cota del porcentaje de varianza acumulativa retenido por PCA.
-ObjetoTrans
-
 sahdTrans <- predict(ObjetoTrans,sahd)
-dim(sahdTrans)
 
 ```
 
-## Preparación de conjutos de training, validación y test.
+## Los conjuntos de validación, training y test usados.
 
-```{r, echo=F, warning=F}
-  #Paso 5: Preparación de conjunto de train/test, y de las etiquetas train/test
-  sahd.data <- sahdTrans[,-ncol(sahdTrans)]
-  sahd.label <- sahdTrans[,ncol(sahdTrans)]
-  #sahd.label[sahd.label==0] <- -1 
-  
-  train <- sample(nrow(sahd),0.7*nrow(sahd))
-  sahd.train <- sahd.data[train,]
-  sahd.test <- sahd.data[-train,]
-  
-  #Etiquetas
-  lsahd.train <- sahd.label[train]
-  lsahd.test <- sahd.label[-train]
-  
-```
 
-## Selección de clases de funciones a usar.
 
-```{r, echo=F,warning=F}
-calculateEtest <- function(ml, test, ltest, s=0){
-  #Cálculo de probabilidades
-  if(s==0){
-    ml.prob_test = predict(ml, test, type="response")
-  }else{
-    ml.prob_test = predict(ml,as.matrix(test),type = "response", s = s)
-  }
 
-  # Etest
-  ml.pred_test = rep(0, length(ml.prob_test)) # predicciones por defecto 0
-  ml.pred_test[ml.prob_test >=0.5] = 1 # >= 0.5 clase 1
-  
+# Regresión. 
 
-  ml.Etest = mean(ml.pred_test != ltest)
-  
-  return(list(ml.Etest, ml.pred_test))
-}
+Para el problema de regresión hemos elegido la base de datos de *Los Ángeles Ozone*, la cual se centra en medir el nivel de concentración de ozono en la atmósfera. Para ello, se realizaban 8 mediciones hechas diariamente en Los Ángeles durante el año 1976. Aunque la idea era obtener el nivel de ozono para todos los días del año, algunos datos se han perdido así que no contiene todos los días del año (en concreto contiene 330 días). La base de datos consta de 10 atributos que son los siguientes:
 
-calculateEin <- function(ml ,ltrain){
-  ml.prob_train = predict(ml, type = "response") #no tenemos que introducirle el train porque recuerda
-  # Ein
-  ml.pred_train = rep(0, length(ml.prob_train)) #predicciones por defecto 0
-  ml.pred_train[ml.prob_train >= 0.5] = 1
-    
-  ml.Ein = mean(ml.pred_train != ltrain)
-
-  return(list(ml.Ein, ml.pred_train))
-}
-
-testFamilies <- function(models, test, ltrain, ltest){
-
-  results <- matrix(nrow=length(models), ncol = 2)
-  colnames(results) <- c("Ein","Eout")
-  for(i in seq_along(models)){
-    results[i,1] <-calculateEin(models[[i]],ltrain)[[1]]
-    results[i,2] <- 
-      calculateEtest(models[[i]],test,ltest)[[1]]
-  }
-  
-  return(results)
-}
-```
-
-```{r, echo=F,warning=F}
-
-# Validación (una sola vez)
-validateFamilies <- function(data,label){
-  #Muestra
-  train <- sample(nrow(data),0.7*nrow(data))
-  
-  #Datos
-  data.train <- data[train,]
-  data.test <-  data[-train,]
-  
-  #Etiquetas
-  label.train <- label[train]
-  label.test <- label[-train]
-  
-  #Modelos
-  #binomial
-  ml.binomial1 <- glm(chd ~ ., family = binomial(logit), data = data, subset=train)
-  ml.binomial2 <- glm(chd ~ ., family = binomial(probit), data = data, subset=train)
-  ml.binomial3 <- glm(chd ~ ., family = binomial(cauchit), data = data, subset=train)
-  #gaussiano
-  ml.gaussian1 <- glm(chd ~ ., family = gaussian(identity), data = data, subset=train)
-  ml.gaussian2 <- glm(chd ~ ., family = gaussian(log), data = data, subset=train, start=rep(0, ncol(data)+1))
-  #poisson
-  ml.poisson1 <- glm(chd ~ ., family = poisson(log), data = data, subset=train)
-  
-  #quasi
-  ml.quasi1 <- glm(chd ~ ., family = quasi(link = "identity", variance = "constant"), data = data, subset=train)
-
-  #quasibinomial
-  ml.quasibinomial1 <- glm(chd ~ ., family = quasibinomial(link = "logit"), data = data, subset=train)
-  #quasipoisson
-  ml.quasipoisson1 <- glm(chd ~ ., family = quasipoisson(link = "log"), data = data, subset=train)  
-
-  models <- list(ml.binomial1, ml.binomial2, ml.binomial3, ml.gaussian1, ml.gaussian2, ml.poisson1, ml.quasi1, ml.quasibinomial1, ml.quasipoisson1)
-  
-  testFamilies(models, data.test, label.train, label.test)
-  
-}
-
-# Función para realizar multiples validaciones
-repValidation <- function(rep,data,label){
-  l <- replicate(n = rep, expr = validateFamilies(data,label))
-  #l es una matriz 3D de rep x num_modelos x 2 (Ein,Eout)
-  #l[,,i] -> experimento i-ésimo
-  #[,i,] -> Ein / Eout de cada modelo en los distintos experimentos (i=1 Ein, i=2 Eout)
-  #[i,,] -> Ein y Eout para el modelo i-ésimo en cada experimento
-  apply(FUN = mean, X = l, MARGIN = c(1,2))
-}
-
-```
-
-```{r, echo=F, warning=F}
-# Comprobamos qué método proporciona un menor error de validación con múltiples validaciones
-repValidation(rep = 100, sahd.data, sahd.label)
-
-# Confirmamos que el modelo que mejor generaliza es el la gaussiana2
-ml.sahd = ml.gaussian2 <- glm(chd ~ ., family = gaussian(log), data = sahd.data, subset=train, start=rep(0, ncol(sahd.data)+1))
-
-
-```
-
-## Regularización.
-
-Hay que mirar si hace falta regularización -> ¿Se realiza mucho aprendizaje?
-
-Lasso -> Trata de evitar el sobreaprendizaje penalizando los coeficientes grandes -> Ventaja : además nos simplifica el modelo.
-
-Si suponemos que sí -> R proporciona una función llamada regresión lasso, el funcionamiento consiste en aplicar regresión y cuando los valores están muy cercanos a 0, los trunca directamente a 0.
-
-
-
-
-```{r, echo=F,warning=F}
-  #library(glmnet)
-  #El método para llamar a GLM con lasso (elasticnet regularization) es glmnet
-
-  #En la documentación aqui parece que haya más families.
-
-  #Mediante validación cruzada sacamos el mejor lambda
-
-  testRegularization <- function(data, label, iter = 100){
-      error1 <- 0
-      error2 <- 0
-      error3 <- 0
-      
-      for(i in 1:iter){
-          train <- sample(nrow(data),0.7*nrow(data))
-          data.train <- data[train,]
-          data.test <- data[-train,]
-          #Etiquetas
-          ldata.train <- label[train]
-          ldata.test <- label[-train]
-          
-          #Ponemos el link en las etiquetas pues a glmnet no se le puede pasar como argumento
-          ml_lasso <- cv.glmnet(as.matrix(data.train), ldata.train, family="gaussian")
-          ml = ml.gaussian2 <- glm(chd ~ ., family = gaussian(log), data = data, subset=train, start=rep(0, ncol(data)+1))
-    
-          error1 <- error1 + calculateEtest(ml_lasso,data.test,ldata.test,ml_lasso$lambda.min)[[1]]
-          error2 <- error2 +calculateEtest(ml_lasso,data.test,ldata.test,ml_lasso$lambda.1se)[[1]]
-          error3 <- error3 +calculateEtest(ml,data.test,ldata.test)[[1]]
-      }
-    
-      print(error1/100)
-      print(error2/100)
-      print(error3/100)
-  }
-
-  testRegularization(sahd.data, sahd.label, 100)
-
-  
-  #ANTIGUO -> PERO PODRIAMOS HACER GRAFICAS Y ESO
-  #Podemos ver los valores y varianzas
-  plot(ml_lasso)
-  plot(ml_lasso$glmnet.fit, xvar="lambda", label=TRUE)
-  #Se puede usar lambda_min o lambda_1se, q es la más grande con varianza más pequeña
-  ml_lasso$lambda.min
-  ml_lasso$lambda.1se
-  
-  #Interpretación de los coeficientes -> log hazard ratios, ratio de riesgo.
-  #Coeficiente positivo -> alto riesgo de suceso
-  #Coeficiente negativo -> viceversa
-  #Para q representen la "importancia" -> hay que escalarlos a varianza 1
-  #Cuando tiene coeficiente 0 -> la ha quitado del problema (parece q a nosotros no nos quita nada)
-
-  #Utilizamos lambda.1se pues nos quita más atributos.
-  coeffs.min <- coef(ml_lasso, s=ml_lasso$lambda.min)
-  coeffs.1se <- coef(ml_lasso, s = ml_lasso$lambda.1se)
-  
-  #Eliminamos los atributos del train  
-  coefficients.min <- coeffs.min[1:nrow(coeffs.min),]
-  coefficients.1se <- coeffs.1se[1:nrow(coeffs.1se),]
-  #sahd.train_lasso = sahd.train[,abs(coefficients)>0]
-  #Los eliminamos del test.
-  #sahd.test_lasso = sahd.test[,abs(coefficients)>0]
-  
-
-
-
-```
-
-Parece ser que para un umbral medio pequeño nos quedaríamos con todas, luego no hay que aplicar regularización.
-
-Usando lambda1se si-> Nos elimina 3 características.
-
-## Definición del modelo.
-
-Usar regsubsets
-
-COMENTARIOS:
-1- Como podemos ver en la tabla -> Los atributos que menos aparecen son sbp, adiposity, obesity y alcohol. Justo los que nos eliminaba al aplicar regularización con lambda.1se. Esto es interesting.
-
-2- Obviamente, si dibujamos plot(testing$ress), obtenemos que el error va disminuyendo a medida que usamos más atributos. La idea es hacer un balance entre el número de atributos usados y el error. Para ello utilizamos BIC: https://es.wikipedia.org/wiki/Criterio_de_informaci%C3%B3n_bayesiano.
-
-3- Por tanto, nos quedamos con el número de atributos donde la función BIC alcanza su mínimo (la penalización error/atributos) es menor. Esto es, nos quedamos con 5 atributos que se corresponden (según el esquema obtenido del regsubsets) con: tobacco, ldl, present_famhist, typea y age.
-
-```{r, echo=F,warning=F}
-  #nbest -> numero de subconjuntos de cada tamaño para almacenar (que nos devuelva solo el mejor de cada tamaño.)
-  #library(leaps)
-
-  #No le quito los atributos porque parece que va a confirmar lo que ya veníamos imaginando: PC2, PC6 y PC7 es caca
-
-  #method = "exhaustive" para que no sea greedy.
-  testing <- regsubsets(chd ~ ., data = sahd.data, nbest = 1, method = "exhaustive")
-
-  #Obtenemos una tablita con los que es mejor coger.
-  stesting <- summary(testing)
-  stesting
-  plot(testing)
-  
-  #Dibujar -> testing$ress
-  plot(testing$ress)
-  plot(stesting$cp)
-  plot(stesting$bic)
-
-  sahd.data <- sahd.data[,c(2,3,5,6,9)]
-```
-
-
-# Transformación de atributos
-
-```{r, echo=F,warning=F}
-testPolyTransform <- function(data,label){
-  #Muestra
-  train <- sample(nrow(data),0.7*nrow(data))
-  
-  #Datos
-  data.train <- data[train,]
-  data.test <-  data[-train,]
-  
-  #Etiquetas
-  label.train <- label[train]
-  label.test <- label[-train]
-  
-  #Usamos el modelo ganador
-  ml <- glm(chd ~., family = gaussian(log), data = data, subset =train,start=rep(0, ncol(data)+1))
-  
-  models <- list(ml)
-  
-  testFamilies(models, data.test, label.train, label.test)
-  
-}
-
-testPolyTransformRep <- function(rep,data,label){
-   l <- replicate(n = rep, expr = testPolyTransform(data,label))
-  #l es una matriz 3D de rep x num_modelos x 2 (Ein,Eout)
-  #l[,,i] -> experimento i-ésimo
-  #[,i,] -> Ein / Eout de cada modelo en los distintos experimentos (i=1 Ein, i=2 Eout)
-  #[i,,] -> Ein y Eout para el modelo i-ésimo en cada experimento
-  apply(FUN = mean, X = l, MARGIN = c(1,2))
-}
-
-# Devuelve un vector de coeficientes para cada atributo
-# tol: Nivel de tolerancia: si dos Eout se diferencian en menos de Eout, escogemos el coeficiente más simple
-polynomialTransformGreedy <- function(data,label,max_coeff, tol = 0){
-  transform <- data
-  coeffs <- c()
-
-  for(i in 1:ncol(transform)){
-    bestEout <- 1
-    bestInd <- 0
-    for(j in 1:max_coeff){
-      transform[,i] <- I(data[,i])^j
-      v <- testPolyTransformRep(100,transform,label)
-      # Comparamos con Etest
-      if(v[2] + tol < bestEout){
-        bestEout <- v[2]
-        bestInd <- j
-      }
-      cat("Attr = ",i,", Exp = ",j,", Eout = ",v[2],"\n")
-    }
-    #Nos quedamos con el mejor coeficiente obtenido para el atributo
-    transform[,i] <- I(data[,i])^bestInd
-    coeffs <- c(coeffs,bestInd)
-  }
-  # Por ser greedy con el mecanismo escogido el mejor Eout va a ser el de la última iteración
-  list(coeffs,bestEout)
-}
-```
-
-```{r, echo=F,warning=F}
-polynomialTransformGreedy(sahd.data,sahd.label,4, tol = 0.01)
-
-```
-
-## Selección y ajuste del modelo final.
-
-
-## Estimación del $E_out$.
-
-## Estudio de la calidad del modelo.
-
-
-#Regresión
-
-```{r echo = FALSE, warning=FALSE}
-    #PREPARACIÓN DE LOS DATOS
-    ozone.df <- read.table("./data/ozone", sep=",",head=T)
-    summary(ozone.df)
-    
-    dim(ozone.df)
-    
-    attach(ozone.df)
-    pairs( ~ozone + vh + wind + humidity + temp + ibh +dpg + ibt + vis + doy, data= ozone.df, col = "blue")
-```
-
-
-    #PREPROCESAMIENTO DE LOS DATOS <- Esto hay que hacerlo también en la regresión? No lo tengo claro
-    
-```{r, echo=F, warning=F}
-
-#library(caret)
-
-#No aplicamos PCA pues pierde variabilidad.
-ObjetoTrans2 = preProcess(ozone.df[,names(ozone.df)!="ozone"],method = c("BoxCox","center","scale"),thres = 0.95)
-
-# El parámetro thres indica cuántas componentes hacen falta para explicar la fracción thres de los datos
-# 1 -> 2 atributos ??????
-# 0.95 -> 8 atributos
-# 0.9 -> 7 atributos
-# 0.8 -> 6 atributos
-
-#THRES ->  cota del porcentaje de varianza acumulativa retenido por PCA.
-ObjetoTrans2
-
-ozoneTrans <- predict(ObjetoTrans2,ozone.df)
-dim(ozoneTrans)
-
-```
-
-Volvemos a comparar todas las gráficas d parejas de atributos tras preprocesar los datos.
-
-```{r,echo=F,warning=F}
-
-attach(ozoneTrans)
-pairs( ~ozone + vh + wind + humidity + temp + ibh +dpg + ibt + vis + doy, data= ozoneTrans, col = "blue")
-```
-
-Comparando con la gráfica anterior comprobamos que, aunque los datos se hayan escalado, la forma en la que se distribuyen los datos sigue siendo la misma.
-
-## Preparación de conjutos de training, validación y test.
-
-```{r, echo=F, warning=F}
-  #Paso 5: Preparación de conjunto de train/test, y de las etiquetas train/test
-  ozone.data <- ozoneTrans[,-1]
-  ozone.label <- ozoneTrans[,1]
-  #sahd.label[sahd.label==0] <- -1 
-  
-  train <- sample(nrow(ozone.df),0.7*nrow(ozone.df))
-  ozone.train <- ozone.data[train,]
-  ozone.test <- ozone.data[-train,]
-  
-  #Etiquetas
-  lozone.train <- ozone.label[train]
-  lozone.test <- ozone.label[-train]
-  
-```
-
-## Selección de clases de funciones a usar
-
-```{r, echo=F,warning=F}
-calculateEtestRegression <- function(mr, test, ltest, s = 0){
-    if(s==0){
-      mr.pred_test = predict(mr, test, type="response")
-    }else{
-      mr.pred_test = predict(mr,as.matrix(test),type = "response", s = s)
-    }
-    #mr.pred_test = predict(mr, test, type="response")
-    mr.Etest <- mean((mr.pred_test-ltest)^2)
-    
-    return(list(mr.Etest,mr.pred_test))
-}
-
-calculateEinRegression <- function(mr ,ltrain){
-    mr.pred_train = predict(mr,type = "response")
-    mr.Ein <- mean((mr.pred_train-ltrain)^2)
-
-    return(list(mr.Ein, mr.pred_train))
-}
-
-testFamiliesRegression <- function(models, test, ltrain, ltest){
-
-  results <- matrix(nrow=length(models), ncol = 2)
-  colnames(results) <- c("Ein","Eout")
-  for(i in seq_along(models)){
-    results[i,1] <-calculateEinRegression(models[[i]],ltrain)[[1]]
-    results[i,2] <- 
-      calculateEtestRegression(models[[i]],test,ltest)[[1]]
-  }
-  
-  return(results)
-}
-```
-
-```{r, echo=F,warning=F}
-
-# Validación (una sola vez)
-validateFamiliesRegression <- function(data,label){
-  #Muestra
-  train <- sample(nrow(data),0.7*nrow(data))
-  
-  #Datos
-  data.train <- data[train,]
-  data.test <-  data[-train,]
-  
-  #Etiquetas
-  label.train <- label[train]
-  label.test <- label[-train]
-  
-  #Modelos
-  mr1 = lm(ozone ~ ., data, train)
-
-
-  models <- list(mr1)
-  
-  testFamiliesRegression(models, data.test, label.train, label.test)
-  
-}
-
-# Función para realizar multiples validaciones
-repValidationRegression <- function(rep,data,label){
-  l <- replicate(n = rep, expr = validateFamiliesRegression(data,label))
-  #l es una matriz 3D de rep x num_modelos x 2 (Ein,Eout)
-  #l[,,i] -> experimento i-ésimo
-  #[,i,] -> Ein / Eout de cada modelo en los distintos experimentos (i=1 Ein, i=2 Eout)
-  #[i,,] -> Ein y Eout para el modelo i-ésimo en cada experimento
-  apply(FUN = mean, X = l, MARGIN = c(1,2))
-}
-
-```
-
-
-```{r, echo=F,warning=F}
-  repValidationRegression(100,ozone.data,ozone.label)
-```
-
-lm???? No hay posibilidades de variarlo no? 
-
-
-## Regularización (pendiente).
-
-
-```{r, echo=F,warning=F}
-
-testRegularizationRegression <- function(data, label, iter = 100){
-      error1 <- 0
-      error2 <- 0
-      error3 <- 0
-      
-      for(i in 1:iter){
-          train <- sample(nrow(data),0.7*nrow(data))
-          data.train <- data[train,]
-          data.test <- data[-train,]
-          #Etiquetas
-          ldata.train <- label[train]
-          ldata.test <- label[-train]
-          
-          #Ponemos el link en las etiquetas pues a glmnet no se le puede pasar como argumento
-          ml_lasso <- cv.glmnet(as.matrix(data.train), ldata.train)
-          ml = lm(ozone ~ ., data, train)
-    
-          error1 <- error1 + calculateEtestRegression(ml_lasso,data.test,ldata.test,ml_lasso$lambda.min)[[1]]
-          error2 <- error2 +calculateEtestRegression(ml_lasso,data.test,ldata.test,ml_lasso$lambda.1se)[[1]]
-          error3 <- error3 +calculateEtestRegression(ml,data.test,ldata.test)[[1]]
-      }
-    
-      print(error1/iter)
-      print(error2/iter)
-      print(error3/iter)
-  }
-```
-
-```{r, echo=F,warning=F}
-  #library(glmnet)
-
-  #Como estamos usandl lm no le metemos familia?
-  mr_lasso <- cv.glmnet(as.matrix(ozone.train), lozone.train)
-
-  #Podemos ver los valores y varianzas
-  plot(mr_lasso)
-  plot(mr_lasso$glmnet.fit, xvar="lambda", label=TRUE)
-  #Se puede usar lambda_min o lambda_1se, q es la más grande con varianza más pequeña
-  mr_lasso$lambda.min
-  mr_lasso$lambda.1se
-  
-  testRegularizationRegression(ozone.data, ozone.label, 100)
-
-
-
-  #Utilizamos lambda.1se pues nos quita más atributos.
-  coeffs2.min <- coef(mr_lasso, s=mr_lasso$lambda.min)
-  coeffs2.1se <- coef(mr_lasso, s=mr_lasso$lambda.1se)
-  
-  
-  #Hay que comprobar qué queda mejor, alguno de estos dos, o el del principio.
-  coefficients2.min <- coeffs2.min[2:nrow(coeffs2.min),]
-  coefficients2.1se <- coeffs2.1se[2:nrow(coeffs2.1se),]
-  
-   #Eliminamos los atributos del train  
-
-  #ozone.train = ozone.train[,abs(coefficients)>0]
-  #Los eliminamos del test.
-  #ozone.test = ozone.test[,abs(coefficients)>0]
-```
-
-```{r, echo=F,warning=F}
-  #nbest -> numero de subconjuntos de cada tamaño para almacenar (que nos devuelva solo el mejor de cada tamaño.)
-  #library(leaps)
-
-  #No le quito los atributos porque parece que va a confirmar lo que ya veníamos imaginando: PC2, PC6 y PC7 es caca
-
-  #method = "exhaustive" para que no sea greedy.
-  testing <- regsubsets(ozone ~ ., data = ozone.data, nbest = 1, method = "exhaustive")
-
-  #Obtenemos una tablita con los que es mejor coger.
-  stesting <- summary(testing)
-  stesting
-  plot(testing)
-  
-  #Dibujar -> testing$ress
-  plot(testing$ress)
-  plot(stesting$cp)
-  plot(stesting$bic)
-  
-  ozone.data <- ozone.data[c(3,4,5,7,8,9)]
-
-```
-
-## Transformación de atributos
-
-```{r, echo=F,warning=F}
-testPolyTransformRegression <- function(data,label){
-  #Muestra
-  train <- sample(nrow(data),0.7*nrow(data))
-  
-  #Datos
-  data.train <- data[train,]
-  data.test <-  data[-train,]
-  
-  #Etiquetas
-  label.train <- label[train]
-  label.test <- label[-train]
-  
-  #Usamos el modelo ganador
-  mr <- lm(ozone ~ ., data, train)
-  
-  models <- list(mr)
-  
-  testFamiliesRegression(models, data.test, label.train, label.test)
-  
-}
-
-testPolyTransformRepReg <- function(rep,data,label){
-   l <- replicate(n = rep, expr = testPolyTransformRegression(data,label))
-  #l es una matriz 3D de rep x num_modelos x 2 (Ein,Eout)
-  #l[,,i] -> experimento i-ésimo
-  #[,i,] -> Ein / Eout de cada modelo en los distintos experimentos (i=1 Ein, i=2 Eout)
-  #[i,,] -> Ein y Eout para el modelo i-ésimo en cada experimento
-  apply(FUN = mean, X = l, MARGIN = c(1,2))
-}
-
-# Devuelve un vector de coeficientes para cada atributo
-# tol: Nivel de tolerancia: si dos Eout se diferencian en menos de Eout, escogemos el coeficiente más simple
-polynomialTransformGreedyRegression <- function(data,label,max_coeff, tol = 0){
-  transform <- data
-  coeffs <- c()
-
-  for(i in 1:ncol(transform)){
-    bestEout <- Inf
-    bestInd <- 0
-    for(j in 1:max_coeff){
-      transform[,i] <- I(data[,i])^j
-      v <- testPolyTransformRepReg(100,transform,label)
-      # Comparamos con Etest
-      if(v[2] + tol < bestEout){
-        bestEout <- v[2]
-        bestInd <- j
-      }
-      cat("Attr = ",i,", Exp = ",j,", Eout = ",v[2],"\n")
-    }
-    #Nos quedamos con el mejor coeficiente obtenido para el atributo
-    transform[,i] <- I(data[,i])^bestInd
-    coeffs <- c(coeffs,bestInd)
-  }
-  # Por ser greedy con el mecanismo escogido el mejor Eout va a ser el de la última iteración
-  list(coeffs,bestEout)
-}
-```
-
-```{r, echo=F,warning=F}
-polynomialTransformGreedyRegression(ozone.data,ozone.label,4, tol = 0.01)
-
-```
-
-
-```{r, echo=F,warning=F}
-    
-    mr1 = lm(ozone ~ ., ozone.data, train)
-    #Cálulo del Ein
-    #mr1.Ein2 <- mean(mr1$residuals^2)
-    
-    mr1.pred_train = predict(mr1,type = "response")
-    mr1.Ein <- mean((mr1.pred_train-lozone.train)^2)
-    # Salen iguales Ein y Ein2, asi que perfe
-    
-    #Cálculo del Etest
-    mr1.pred_test = predict(mr1, ozone.test, type="response")
-    mr1.Etest <- mean((mr1.pred_test-lozone.test)^2)
-    
-    #plot(doy,ozone, main = "doy vs mpg")
-    #abline(m1$coefficients[c(1,10)])
-    
-
-```
-
-
-```{r, echo=F,warning=F}
-# Pruebo con una transformación
-
-# Correlaciones aparentes (por el dibujo):
-# vh - Potencial e incluso exponencial
-# wind - Poca correlación, quizás cuadrática
-# humidity - Poca correlación, quizás cuadrática o lineal
-# temp - Mucha correlación, lineal o quizás cuadrática
-# ibh - Poca correlación
-# dpg - Cuadrática
-# ibt - Potencial e incluso exponencial
-# vis - Poca correlación
-# doy - Cuadrática
-
-#Pensar relaciones no cuadráticas.
-
-mr2 = lm(ozone ~ I(vh^2) + temp + I(dpg^2) + I(ibt^2) + I(doy^2), data=ozone.df, subset=train)
-
-#Cálulo del Ein
-    mr2.Ein <- mean(mr2$residuals^2)
-    
-    #Cálculo del Etest
-    mr2.pred_test = predict(mr2, ozone.test, type="response")
-    mr2.Etest <- mean((mr2.pred_test-lozone.test)^2)
-    
-
-```
-
-
-```{r, echo=F,warning=F}
-x1 <- c(1:100,1:100)
-x2 <- 1:200
-x2[1:100] <- (x1[1:100])^2-1
-x2[101:200]<- (x1[101:200])^2+1
-
-y <- sign(x2-x1^2)
-y[y==-1] <- 0
-
-prueba.data <- matrix(c(x1,x2,y),ncol = 3)
-colnames(prueba.data) <- c("x1","x2","y")
-
-plot(x1,x2, col = y +3)
-
-validateFamilies(prueba.data,y)
-train <- sample(nrow(prueba.data), 0.7*nrow(prueba.data))
-
-ml.binomial1 <- glm(y ~ ., family = gaussian(identity), data = as.data.frame(prueba.data), subset=train)
-
-calculateEin(ml.binomial1,y[train])
-
-ml.binomial1$coefficients
-
-```
-
+- **ozone**: Es la variable de respuesta, mide la elevación máxima del ozono. 
+- **vh**: Vandenberg 500 mb Height
+- **wind**: Velocidad del viento, medida en mph.
+- **humidity:** Tanto por ciento de humedad.
+- **temp:** Temperatura
+- **ibh:** 
+- **dpg:** Gradiente de presión de Daggot.
+- **ibt:** 
+- **vis:** La visibilidad medida en millas.
+- **day:** Día del año en el que se realizó la medición.
