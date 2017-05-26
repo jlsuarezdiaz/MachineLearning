@@ -108,7 +108,9 @@ Derivamos primero $J$ respecto de $y_j$:
 
 \[\frac{\partial J}{\partial y_j} = \frac{1}{2}\frac{\partial}{\partial y_j}\sum_{k=1}^{n_O}(t_k-c_k)^2 = \frac{1}{2}\sum_{k=1}^{n_O}\frac{\partial}{\partial y_j}(t_k-c_k)^2\]
 
+
 Por la regla de la cadena, $\frac{\partial}{\partial y_j} = \frac{\partial}{z_k}\frac{\partial z_k}{y_j}$, para cada $k = 1,\dots,n_O$. Aplicando esto a la expresión anterior, obtenemos:
+
 
 
 \[\frac{\partial J}{\partial y_j} = \frac{1}{2}\sum_{k=1}^{n_O}\frac{\partial}{\partial z_k}(t_k-c_k)^2\frac{\partial z_k}{\partial y_j}\]
