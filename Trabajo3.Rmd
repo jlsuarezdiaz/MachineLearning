@@ -513,7 +513,7 @@ cat("Eout estimado: ",l[[2]])
 
 ```
 
-Vemos que, para exponentes de hasta tamaño no se aprecian mejoras significativas con respecto a los coeficientes lineales iniciales.
+Vemos que, para exponentes de hasta tamaño 6 no se aprecian mejoras significativas con respecto a los coeficientes lineales iniciales.
 
 # Regresión. 
 
