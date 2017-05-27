@@ -10,7 +10,7 @@ toc: yes
 
 ```{r, echo = FALSE, warnings = FALSE, results = FALSE, message = FALSE}
     #Fijamos la semilla para obtener siempre los mismos resultados
-    set.seed(123456789)
+    set.seed(3928423)
 
     #Añadimos librerías necesarias.
     library("caret")
@@ -414,7 +414,7 @@ Para contestar a la pregunta de si era necesario aplicar regularización a nuest
 
 Como podemos observar, el error medio obtenido es menor con el modelo sin regularizar, obteniendo así una respuesta negativa a la pregunta. Por tanto, seguiremos con el modelo sin regularización. <- JUANLU -> LA TIA COMENTÓ AQUI ALGO DE LAS VARIANZAS CHICAS?? NO LO SÉ :S
 
-A modo de ampliación, comentar que el método de regularización lasso, cuando devuelve valores de $\lambda$ (ESTO SON LAMBDA??? !!!) nulos significa que está despreciando estos atributos para la predicción. Si imprimimos los coeficientes correspondientes al valor de *lambda.1se* observamos que los atriburos que no selecciona para la predicción son: sbp, adiposity, typea, obesity y alcohol.
+A modo de ampliación, comentar que el método de regularización lasso, cuando devuelve los coeficientes nulos significa que está despreciando estos atributos para la predicción. Si imprimimos los coeficientes correspondientes al valor de *lambda.1se* observamos que los atriburos que no selecciona para la predicción son: sbp, adiposity, typea, obesity y alcohol.
 
 ```{r, echo=F,warning=F}
   ml_lasso <- cv.glmnet(as.matrix(sahd.train), lsahd.train, family="poisson")
@@ -440,7 +440,7 @@ El método nos proporciona el siguiente esquema en el que podemos apreciar las c
   print(stesting$outmat)
 ```
 
-En este punto nos planteamos cuántos atributos utilizar para nuestro modelo. Claramente, cuantos más atributos utilicemos menor será el error producido (solo Ein no ???!!!). Esto lo podemos corroborar dibujando la gráfica del error por mínimos cuadrados en función del número de atributos elegidos.
+En este punto nos planteamos cuántos atributos utilizar para nuestro modelo. Claramente, cuantos más atributos utilicemos menor será el error producido en la muestra. Esto lo podemos corroborar dibujando la gráfica del error por mínimos cuadrados en función del número de atributos elegidos.
 
 ```{r, echo=F,warning=F}
 
@@ -448,7 +448,7 @@ En este punto nos planteamos cuántos atributos utilizar para nuestro modelo. Cl
   plot(testing$ress, col = "red", pch = 19, type = "b")
 ```
 
-Sin embargo, debemos de plantearnos qué número de atributos sería el óptimo si penalizáramos también el número de atributos utilizados. Es decir, cuándo una función que combine el error producido junto con el número de atributos utilizado se minimiza. Para ello utilizamos la función *BIC*, cuya gráfica en función del número de atributos podemos observar a continuación: <- EXPLICAR CÓMO FUNCIONA BIC, NO LO ENTIENDO NADA BIEN <- LO HE ESCRITO EN EL NEXT PARRAF, MIRA A VER QUE TE PARECE !!!
+Sin embargo, debemos de plantearnos qué número de atributos sería el óptimo si penalizáramos también el número de atributos utilizados. Es decir, cuándo una función que combine el error producido junto con el número de atributos utilizado se minimiza. Para ello utilizamos la función *BIC*, cuya gráfica en función del número de atributos podemos observar a continuación: 
 
 ```{r, echo=F,warning=F}
 
@@ -561,7 +561,7 @@ Para el problema de regresión hemos elegido la base de datos de *Los Ángeles O
     ozone.df <- read.table("./data/ozone", sep=",",head=T)
     summary(ozone.df)
     
-    dim(ozone.df)
+   # dim(ozone.df)
     
     attach(ozone.df)
 
@@ -573,11 +573,12 @@ A continuación, se muestra una comparativa de todos los atributos 2 a 2 mediant
 
     pairs( ~ozone + vh + wind + humidity + temp + ibh +dpg + ibt + vis + doy, data= ozone.df, col = "red")
 ```
+
 Realmente, las gráficas que más nos interesan son las de la primera fila, puesto que muestran `ozone`, el atributo sobre el que queremos hacer regresión, en función del resto de atributos. Aunque también, el resto de gráficas nos puede permitir intuir dependencias entre atributos, lo que nos puede conducir a la eliminación de algunos cuya información ya esté presente en otro atributo.
 
 ## Preprocesamiento de datos
 
-Como en el problema de regresión, procedemos a procesar los datos para reducir asimetrías, escalarlos y centrarlos. De nuevo, como trabajamos con un número pequeño de atributos, no aplicaremos PCA para la reducción de atributos.
+Como en el problema de clasificación, procedemos a procesar los datos para reducir asimetrías, escalarlos y centrarlos. De nuevo, como trabajamos con un número pequeño de atributos, no aplicaremos PCA para la reducción de atributos.
 
 ```{r, echo=F, warning=F}
 
@@ -706,6 +707,7 @@ Una vez definido el modelo, procedemos a su ajuste y al análisis de los errores
 
 ## Regularización.
 
+Al igual que en el problema de clasificación, obtendremos dos valores de lambda y compararemos los errores producidos con cada uno de estos valores y con el modelo anterior, sin aplicar regularización.
 
 ```{r, echo=F,warning=F}
 
@@ -732,12 +734,11 @@ testRegularizationRegression <- function(data, label, iter = 100){
           error3 <- error3 +calculateEtestRegression(ml,data.test,ldata.test)[[1]]
       }
     
-      #print(error1/iter)
-      #print(error2/iter)
-      #print(error3/iter)
       return(c(error1/iter,error2/iter,error3/iter))
   }
 ```
+
+Los errores producidos han sido:
 
 ```{r, echo=F,warning=F}
   #library(glmnet)
@@ -748,38 +749,42 @@ testRegularizationRegression <- function(data, label, iter = 100){
   cat("Etest con lambda min: ",l[1],"\n")
   cat("Etest con lambda 1se: ",l[2],"\n")
   cat("Etest con el modelo original: ",l[3],"\n")
-
-  #Como el error ha disminuido usando lambda.min
-  grid=10^seq(10,-2,length=100)
-  mr_lasso <- cv.glmnet(as.matrix(ozone.train), lozone.train, lambda = grid)
-  best_lambda = mr_lasso$lambda.min
-  
-
 ```
 
+A diferencia de en el problema de clasificación, hemos obtenido que el menor error se consigue con *lambda.min*, aunque la diferencia con el modelo sin regularización es insignificante, y por tanto la regularización no es necesaria.
+
+
+## Optimización del número de atributos para el modelo seleccionado
+
+Al igual que en la clasificación, vamos a elegir el número de atributos que consideramos para nuestro modelo. Análogamente, realizaremos una búsqueda exhaustiva de las mejores combinaciones de atributos. Obtenemos que el esquema resultante es el siguiente:
+
 ```{r, echo=F,warning=F}
-  #nbest -> numero de subconjuntos de cada tamaño para almacenar (que nos devuelva solo el mejor de cada tamaño.)
-  #library(leaps)
-
-  #No le quito los atributos porque parece que va a confirmar lo que ya veníamos imaginando: PC2, PC6 y PC7 es caca
-
   #method = "exhaustive" para que no sea greedy.
   testing <- regsubsets(ozone ~ ., data = ozone.data, nbest = 1, method = "exhaustive")
 
   #Obtenemos una tablita con los que es mejor coger.
   stesting <- summary(testing)
-  stesting
-  plot(testing)
-  
+  print(stesting$outmat)
+```
+
+Dibujamos también la gráfica descendente de errores *ress*:
+
+```{r, echo=F,warning=F}
   #Dibujar -> testing$ress
-  plot(testing$ress)
-  plot(stesting$cp)
-  plot(stesting$bic)
+  plot(testing$ress, col = "red", pch = 19, type = "b")
+```
+
+De forma análoga al ejercicio anterior, dibujamos la gráfica de *BIC* para determinar qué número de atributos optimiza el error junto con el número de atributos obtenido.
+
+```{r, echo=F,warning=F}
+
+  plot(stesting$bic, col = "blue", pch=19, type = "b")
   
-  #ozone.data <- ozone.data[c(3,4,5,7,8,9)]
+  ozone.data <- ozone.data[c(3,4,7,9)]
 
 ```
 
+En este caso, aunque no es tan evidente como en el ejercicio de clasificación, vemos que el mínimo de la función *BIC* se alcanza en cuatro atributos, luego nos quedamos con la mejor combinación de cuatro atributos. Esta es, la que observamos en el esquema del *regsubsets*:  humidity, temp, ibt, doy.
 
 ## Transformación de atributos
 
@@ -845,6 +850,7 @@ polynomialTransformGreedyRegression <- function(data,label,max_coeff, tol = 0){
 ```
 
 ```{r, echo=F,warning=F}
+
 l <- polynomialTransformGreedyRegression(ozone.data,ozone.label,4, tol = 0.01)
 
 cat("Vector de exponentes: ", l[[1]],"\n")
@@ -854,3 +860,4 @@ cat("Eout estimado: ",l[[2]],"\n")
 
 En este caso vemos que sí hay transformaciones polinómicas que mejoran el ajuste.
 
+## Conclusiones
