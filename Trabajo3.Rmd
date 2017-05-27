@@ -31,7 +31,7 @@ Nuestra base de datos consta de 462 muestras donde cada una de ellas cuenta con 
 - **sbp:** presión arterial sistólica. Toma valores entre 101 y 218, siendo la media 138.3. 
 - **tobacco:** tabaco acumulativo (en kg). Toma como valor mínimo 0 y máximo 31.2. En este caso la media es de 3.6356.
 - **ldl:** lipoproteína de baja densidad (colesterol). Toma valores entre 0.98 y 15.330, siendo la media 4.74.
-- **adiposidad:** adiposi Tomando valores entre 6.74 y 42.49, siendo la media de los valores 25.41.
+- **adiposidad:** Tomando valores entre 6.74 y 42.49, siendo la media de los valores 25.41.
 - **famhist:** historial familiar de cardiopatías. Toma como valores \{Present, Absent\}, habiendo del primer tipo 270 y del segundo 192.
 - **typea:** Personalidad Tipo-A (mide el grado de estrés en el día a día). Toma valores entre 13 y 78, siendo la media 53.1.
 - **obesity:** Obesidad. Toma valores entre 14.7 y 46.58, siendo la media 26.04.
@@ -152,7 +152,6 @@ A continuación pasaremos a explorar los distintos modelos sobre los que resolve
   #sahd.label[sahd.label==0] <- -1 
   
   
-  # ESTO NOS HACE FALTA YA ??? !!! -> Siii, porque luego para ir imprimiendo cosas llamamos a metodos sobre esto
   train <- sample(nrow(sahd),0.7*nrow(sahd))
   sahd.train <- sahd.data[train,]
   sahd.test <- sahd.data[-train,]
@@ -220,17 +219,17 @@ testFamilies <- function(models, test, ltrain, ltest){
 
 ## Selección de clases de funciones a usar
 
-Los modelos que vamos a intentar ajustar son los proporcionados por la función `glm` (Generalized Linear Models) de `R`. Las familias que vamos a considerar para el ajuste son (!!!BUSCAR QUE SON !!!):
+Los modelos que vamos a intentar ajustar son los proporcionados por la función `glm` (Generalized Linear Models) de `R`. Para cada familia, siempre que admitan, utilizaremos distintas funciones de enlace. Las funciones de enlace nos permiten establecer una relación entre la media de la respuesta y los predictores del modelo. Las familias que vamos a considerar para el ajuste son:
 
 - **Binomial**, con link **logit**. Regresión logística.
-- **Binomial**, con link **probit**. Regresión logística. (?)
-- **Binomial**, con link **cauchit**. Regresión logística. (?)
-- **Gaussiana**, con link **identity**. Regresión lineal (?)
-- **Gaussiana**, con link **log**.
-- **Poisson**. Regresión de Poisson. 
-- **Quasi**.
-- **Quasibinomial.**
-- **Quasipoisson.**
+- **Binomial**, con link **probit**. Modelo binomial, con función de enlace $\Phi^{-1}(\mu)$, donde $\Phi$ es la distribución acumulada de la distribución normal.
+- **Binomial**, con link **cauchit**. Modelo binomial, cuya función de enlace es la análoga a la del modelo anterior sobre una distribución de Cauhy, en lugar de la normal.
+- **Gaussiana**, con link **identity**. Regresión lineal.
+- **Gaussiana**, con link **log**. Distribución normal con función de enlace logarítmica.
+- **Poisson**. Distribución de Poisson. 
+- **Quasi**. Este modelo no tiene una varianza determinada como en el resto de familias. Indicaremos la especificación de varianza `"constant"`
+- **Quasibinomial.** Distribución binomial, con la única diferencia de que no fija el parámetro de dispersión (intenta describir varianza adicional en los datos que no puede ser explicada mediant una distribución binomial).
+- **Quasipoisson.** Distribución de Poisson, con la única diferencia de que no fija el parámetro de dispersion.
 
 
 
@@ -361,8 +360,8 @@ El objetivo se basa en reducir el error de predicción, para ello, se ocupa de r
 
 donde $n$ es el número de muestras y $p$ el número de atributos y $w$ el vector de pesos solución. Así, obtiene diferentes valores de $\lambda$. Entre estos valores devueltos, podemos considerar dos de ellos:
 
-- *lambda.min*, que nos devuelve el valor del menor $\lambda$ obtenido.
-- *lambda.1se*, valor que se obtiene, tras calcular el modelo que proporciona menor error, para el mejor modelo que tiene su error "within one standard error of that minimum error" (no entiendo esta frase !!!) (1se significa one-stand-error) ??????????
+- *lambda.min*, que nos devuelve el valor del $\lambda$ para el que se minimiza el error obtenido.
+- *lambda.1se*. Aunque el $\lambda$ anterior sea menor, presenta una mayor dependencia de las particiones seleccionadas en la validación cruzada. La regla `1se` (one standard error), elige un valor de $\lambda$ para lo suficiente cercano a `lambda.min` para el cual el modelo obtenido sea lo suficiente simple, reduciendo así la dependencia del error respecto a las validaciones.
 
 Podemos contemplar cualquiera de estos valores de $\lambda$ para regularizar nuestro modelo. 
 
@@ -871,7 +870,7 @@ cat("Eout estimado: ",l[[2]],"\n")
 
 ```
 
-Como podemos observar, en este caso hemos obtenido un error menor al obtenido anteriormente, aunque esto se ha hecho a expensas de utilizar más atributos, lo que conlleva una mayor carga de cómputo. Aunque en este ejercicio no es un problema dado la reducida dimensión del conjunto de datos a utilizar, es importante tener un balance entre el error producid y el número de atributos considerado.
+Como podemos observar, en este caso hemos obtenido un error menor al obtenido anteriormente, aunque esto se ha hecho a expensas de utilizar más atributos, lo que conlleva una mayor carga de cómputo. Aunque en este ejercicio no es un problema dado la reducida dimensión del conjunto de datos a utilizar, es importante tener un balance entre el error producido y el número de atributos considerado.
 
 ## Conclusiones
 
