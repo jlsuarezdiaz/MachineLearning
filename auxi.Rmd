@@ -793,3 +793,63 @@ ml.binomial1$coefficients
 
 ```
 
+```{r, echo=F,warning=F}
+pairs( ~ tobacco + ldl + present_famhist + typea + age, data=sahd.data, col = chd+3)
+  #Paso 5: Preparación de conjunto de train/test, y de las etiquetas train/test
+  sahd.data <- sahdTrans[,-ncol(sahdTrans)]
+  sahd.label <- sahdTrans[,ncol(sahdTrans)]
+  #sahd.label[sahd.label==0] <- -1 
+  
+  train <- sample(nrow(sahd),0.7*nrow(sahd))
+  sahd.train <- sahd.data[train,]
+  sahd.test <- sahd.data[-train,]
+  
+  #Etiquetas
+  lsahd.train <- sahd.label[train]
+  lsahd.test <- sahd.label[-train]
+  
+  ml <- glm(chd ~ ldl+age+I(ldl^2)+I(age^2)+I(age*ldl) , family = poisson(log), data = sahd.data, subset=train)
+  
+  ml$coefficients
+  
+#  calculateEtest <- function(ml, test, ltest, s=0){
+#  #Cálculo de probabilidades
+#  if(s==0){
+#    ml.prob_test = predict(ml, test, type="response")
+#  }else{
+#    ml.prob_test = predict(ml,as.matrix(test),type = "response", s = s)
+#  }
+
+  # Etest
+#  ml.pred_test = rep(0, length(ml.prob_test)) # predicciones por defecto 0
+#  ml.pred_test[ml.prob_test >=0.5] = 1 # >= 0.5 clase 1
+  
+
+#  ml.Etest = mean(ml.pred_test != ltest)
+  
+#  return(list(ml.Etest, ml.pred_test))
+#}
+
+#calculateEin <- function(ml ,ltrain){
+#  ml.prob_train = predict(ml, type = "response") #no tenemos que introducirle el train porque recuerda
+#  # Ein
+#  ml.pred_train = rep(0, length(ml.prob_train)) #predicciones por defecto 0
+#  ml.pred_train[ml.prob_train >= 0.5] = 1
+    
+#  ml.Ein = mean(ml.pred_train != ltrain)
+
+#  return(list(ml.Ein, ml.pred_train))
+#}
+  
+ml.probtrain <- predict(ml.sahd,type="response")
+ml.predtrain <- rep(0,length(ml.probtrain))
+ml.predtrain[ml.probtrain >= 0.5]=1
+ml.Etrain = mean(ml.predtrain != lsahd.train)
+  
+ml.probtest <- predict(ml,sahd.test,type="response")
+ml.predtest <- rep(0,length(ml.probtest))
+ml.predtest[ml.probtest >= 0.5]=1
+ml.Etest = mean(ml.predtest != lsahd.test)
+ml.Etest
+
+```

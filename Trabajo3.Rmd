@@ -411,7 +411,7 @@ Para contestar a la pregunta de si era necesario aplicar regularización a nuest
 
 ```
 
-Como podemos observar, el error medio obtenido es menor con el modelo sin regularizar, obteniendo así una respuesta negativa a la pregunta. Por tanto, seguiremos con el modelo sin regularización. <- JUANLU -> LA TIA COMENTÓ AQUI ALGO DE LAS VARIANZAS CHICAS?? NO LO SÉ :S
+Como podemos observar, el error medio obtenido es menor con el modelo sin regularizar, obteniendo así una respuesta negativa a la pregunta. Por tanto, seguiremos con el modelo sin regularización. <- JUANLU -> !!! LA TIA COMENTÓ AQUI ALGO DE LAS VARIANZAS CHICAS?? NO LO SÉ :S
 
 A modo de ampliación, comentar que el método de regularización lasso, cuando devuelve los coeficientes nulos significa que está despreciando estos atributos para la predicción. Si imprimimos los coeficientes correspondientes al valor de *lambda.1se* observamos que los atriburos que no selecciona para la predicción son: sbp, adiposity, typea, obesity y alcohol.
 
@@ -537,8 +537,46 @@ Vemos que, para exponentes de hasta tamaño 6 no se aprecian mejoras significati
 
 ## Conclusiones.
 
-Por tanto, el modelo óptimo escogido es un modelo lineal que utiliza los atributos tobacco, ldl, present_famhist, typea y age. A este conjunto de datos le aplicamos una regresión de Poisson obteniendo un error estimado del 26.46763\%. -> CONCLUSION: EL MODELO ES UN MOJONSILLO. Aqui hay que añadir mucha mucha más literatura. !!!
+Por tanto, el modelo óptimo escogido es un modelo lineal que utiliza los atributos tobacco, ldl, present_famhist, typea y age. A este conjunto de datos le aplicamos una regresión de Poisson obteniendo un error estimado del 26.46763\%. Es decir, tras todos los modelos probados el error no ha conseguido disminuir del 25 %, lo que nos indica que los datos no son separables en gran medida. Esto se puede ilustrar en la siguiente gráfica, en la que se muestran los atributos finales escogidos comparados dos a dos, junto con la clase que determina el dato en cuestión. Vemos que en general, es difícil apreciar patrones de separación (aunque esto no nos asegura nada, puesto que la dimensión del número de atributos es mayor, y comparándolos 2 a 2 no se puede afirmar nada sobre la separabilidad real del conjunto).
 
+```{r, echo=F,warning=F}
+pairs( ~ tobacco + ldl + present_famhist + typea + age, data=sahd.data, col = chd+3)
+
+```
+
+En la gráfica anterior podemos observar además que hay atributos que separan las clases con mayor facilidad, por ejemplo, `age` y `ldl`. Podemos probar a clasificar los datos usando solo estos atributos, obteniendo los siguientes resultados:
+
+```{r, echo=F,warning=F}
+
+ml <- glm(chd ~ typea+age , family = poisson(log), data = sahd.data, subset=train)
+
+
+ml.probtrain <- predict(ml.sahd,type="response")
+ml.predtrain <- rep(0,length(ml.probtrain))
+ml.predtrain[ml.probtrain >= 0.5]=1
+ml.Ein = mean(ml.predtrain != lsahd.train)
+  
+ml.probtest <- predict(ml,sahd.test,type="response")
+ml.predtest <- rep(0,length(ml.probtest))
+ml.predtest[ml.probtest >= 0.5]=1
+ml.Etest = mean(ml.predtest != lsahd.test)
+
+cat("Ein = ",ml.Ein,"\n")
+cat("Etest = ",ml.Etest,"\n")
+
+coefs_recta_explicita <- function(coefs_recta_impl){
+  return(c(-coefs_recta_impl[2]/coefs_recta_impl[3],-coefs_recta_impl[1]/coefs_recta_impl[3]))
+}
+
+#plot(typea,age,col = chd + 3)
+#r <- coefs_recta_explicita(ml$coefficients)
+#abline(r[2],r[1],col="red")
+
+```
+
+Es decir, de entre el par de atributos que mejor aparenta separar los datos, el error es bastante elevado, y al optimizar el número de atributos, aunque el error sigue siendo alto, conseguimos reducirlo bastante. Esto nos permite observar que el modelo ajustado, dentro de la poca separabilidad de los datos, es de calidad (?)
+
+También hemos comprobado que, en general, el conjunto de datos es poco sensible a la regularización y a las transformaciones. Sobre esto último, al no haber diferencias relevantes con respecto a ninguna transformación polinómica, se mantiene la linealidad en los datos, puesto que entre modelos similares, siempre es mejor quedarnos con el de mayor simplicidad.
 
 # Regresión. 
 
@@ -549,7 +587,7 @@ Para el problema de regresión hemos elegido la base de datos de *Los Ángeles O
 - **wind**: Velocidad del viento, medida en mph.
 - **humidity:** Tanto por ciento de humedad.
 - **temp:** Temperatura
-- **ibh:** 
+- **ibh:** !!!
 - **dpg:** Gradiente de presión de Daggot.
 - **ibt:** 
 - **vis:** La visibilidad medida en millas.
