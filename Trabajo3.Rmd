@@ -24,7 +24,7 @@ toc: yes
 
 ## Comprensión del problema a resolver.
 
-Para el problema de clasificación hemos elegido la base de datos de *South African Heart Disease*, que almacena una muestra recapituladora de hombres en alto riesgo de cardiopatía en la región de Western Cape, en Sudáfrica. Hay dos casos de CHD (0 o 1). Algunos de los hombres que tienen CHD positivo, se han sometido a un tratamiento de reducción de la presión sanguínea, siendo los datos que aparecen en la muestra posteriores a estos tratamientos. Estos datos datan de 1983.
+Para el problema de clasificación hemos elegido la base de datos de *South African Heart Disease*, que almacena una muestra recapituladora de hombres en alto riesgo de cardiopatía en la región de Western Cape, en Sudáfrica. Hay dos casos de CHD (0 o 1). Algunos de los hombres que tienen CHD positivo, se han sometido a un tratamiento de reducción de la presión sanguínea, siendo los datos que aparecen en la muestra posteriores a estos tratamientos. Esta información data de 1983.
 
 Nuestra base de datos consta de 462 muestras donde cada una de ellas cuenta con 10 atributos, uno de ellos la variable de respuesta. Los diferentes atributos a tratar son:
 
@@ -357,7 +357,7 @@ El objetivo se basa en reducir el error de predicción, para ello, se ocupa de r
   R(\beta) = \sum_{i=1}^{n}(y_i - x_i\omega)^2 + \lambda \sum_{i=1}^{p}|\omega_i|
 \]
 
-donde $n$ es el número de muestras y $p$ el número de atributos y $w$ el vector de pesos solución. Así, obtiene diferentes valores de $\lambda$. Entre estos valores devueltos, podemos considerar dos de ellos:
+donde $n$ es el número de muestras, $p$ el número de atributos y $w$ el vector de pesos solución. Así, obtiene diferentes valores de $\lambda$. Entre estos valores devueltos, podemos considerar dos de ellos:
 
 - *lambda.min*, que nos devuelve el valor del $\lambda$ para el que se minimiza el error obtenido.
 - *lambda.1se*. Aunque el $\lambda$ anterior sea menor, presenta una mayor dependencia de las particiones seleccionadas en la validación cruzada. La regla `1se` (one standard error), elige un valor de $\lambda$ para lo suficiente cercano a `lambda.min` para el cual el modelo obtenido sea lo suficiente simple, reduciendo así la dependencia del error respecto a las validaciones.
@@ -420,7 +420,7 @@ A continuación, en la selección del número de atributos a utilizar, veremos q
 
 ## Optimización del número de atributos para el modelo seleccionado
 
-Para optimizar el número de atributos para el modelo seleccionado, vamos a hacer uso de la función llamada *regsubsets*, esta función junto con las opciones de *method = "exhaustive* y *nbest = 1* realizará una búsqueda exhaustiva del mejor atributo (el que produce menor error cuadrático), la mejor pareja de atributos, el mejor trío, etcétera. 
+Para optimizar el número de atributos para el modelo seleccionado, vamos a hacer uso de la función llamada `regsubsets`, esta función junto con las opciones de `method = "exhaustive"` y `nbest = 1` realizará una búsqueda exhaustiva del mejor atributo (el que produce menor error cuadrático), la mejor pareja de atributos, el mejor trío, etcétera. 
 
 El método nos proporciona el siguiente esquema en el que podemos apreciar las combinaciones de atributos elegidos.
 
@@ -788,10 +788,12 @@ Al igual que en la clasificación, vamos a elegir el número de atributos que co
   #method = "exhaustive" para que no sea greedy.
   testing <- regsubsets(ozone ~ ., data = ozone.data, nbest = 1, method = "exhaustive")
 
-  #Obtenemos una tablita con los que es mejor coger.
+  #Obtenemos una tabla con los que es mejor coger.
   stesting <- summary(testing)
   print(stesting$outmat)
 ```
+
+En la tabla anterior vemos por filas cuáles son las mejores combinaciones de $n$ atributos. El valor $n$ es el que aparece al inicio de cada fila, y los atributos que entran en su respectiva combinación los marcados con el símbolo `*`.
 
 Dibujamos también la gráfica descendente de errores *ress*:
 
