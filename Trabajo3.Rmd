@@ -149,7 +149,6 @@ A continuación pasaremos a explorar los distintos modelos sobre los que resolve
   #Paso 5: Preparación de conjunto de train/test, y de las etiquetas train/test
   sahd.data <- sahdTrans[,-ncol(sahdTrans)]
   sahd.label <- sahdTrans[,ncol(sahdTrans)]
-  #sahd.label[sahd.label==0] <- -1 
   
   
   train <- sample(nrow(sahd),0.7*nrow(sahd))
@@ -340,7 +339,7 @@ Una vez definidos los modelos y las funciones a usar, procedemos al ajuste de lo
 # Comprobamos qué método proporciona un menor error de validación con múltiples validaciones
 repValidation(rep = 100, sahd.data, sahd.label)
 
-# Confirmamos que el modelo que mejor generaliza es el la gaussiana2
+# Confirmamos que el modelo que mejor generaliza es el de Poisson
 ml.sahd <- glm(chd ~ ., family = poisson(log), data = sahd.data, subset=train, start=rep(0, ncol(sahd.data)+1))
 
 
@@ -388,7 +387,6 @@ Para contestar a la pregunta de si era necesario aplicar regularización a nuest
           ldata.train <- label[train]
           ldata.test <- label[-train]
           
-          #Ponemos el link en las etiquetas pues a glmnet no se le puede pasar como argumento
           ml_lasso <- cv.glmnet(as.matrix(data.train), ldata.train, family="poisson")
           ml = ml.gaussian2 <- glm(chd ~ ., family = gaussian(log), data = data, subset=train, start=rep(0, ncol(data)+1))
     
@@ -397,9 +395,6 @@ Para contestar a la pregunta de si era necesario aplicar regularización a nuest
           error3 <- error3 +calculateEtest(ml,data.test,ldata.test)[[1]]
       }
     
-      #print(error1/100)
-      #print(error2/100)
-      #print(error3/100)
       return(c(error1/iter,error2/iter,error3/iter))
   }
 
@@ -568,9 +563,7 @@ coefs_recta_explicita <- function(coefs_recta_impl){
   return(c(-coefs_recta_impl[2]/coefs_recta_impl[3],-coefs_recta_impl[1]/coefs_recta_impl[3]))
 }
 
-#plot(typea,age,col = chd + 3)
-#r <- coefs_recta_explicita(ml$coefficients)
-#abline(r[2],r[1],col="red")
+
 
 ```
 
@@ -591,7 +584,7 @@ Para el problema de regresión hemos elegido la base de datos de *Los Ángeles O
 - **dpg:** Gradiente de presión de Daggot.
 - **ibt:** Temperatura (ºF)
 - **vis:** La visibilidad medida en millas.
-- **day:** Día del año en el que se realizó la medición.
+- **doy:** Día del año en el que se realizó la medición.
 
 ```{r echo = FALSE, warning=FALSE}
     #PREPARACIÓN DE LOS DATOS
@@ -613,6 +606,8 @@ A continuación, se muestra una comparativa de todos los atributos 2 a 2 mediant
 
 Realmente, las gráficas que más nos interesan son las de la primera fila, puesto que muestran `ozone`, el atributo sobre el que queremos hacer regresión, en función del resto de atributos. Aunque también, el resto de gráficas nos puede permitir intuir dependencias entre atributos, lo que nos puede conducir a la eliminación de algunos cuya información ya esté presente en otro atributo.
 
+Un último detalle sobre los atributos es que, en un principio podría pensarse que `doy` (day of year) carece de importancia a la hora de estimar `ozone`. Sin embargo, tras analizar más profundamente el atributo, vemos que lo que representa es de gran utilidad, puesto que cada posible valor hace referencia a un único día de un año natural, y en este aspecto (y además se puede apreciar en las gráficas anteriores), el nivel de ozono sí que depende la época (estaciones, temperaturas, lluvias) del año en que se mide.
+
 ## Preprocesamiento de datos
 
 Como en el problema de clasificación, procedemos a procesar los datos para reducir asimetrías, escalarlos y centrarlos. De nuevo, como trabajamos con un número pequeño de atributos, no aplicaremos PCA para la reducción de atributos.
@@ -627,7 +622,6 @@ ObjetoTrans2 = preProcess(ozone.df[,names(ozone.df)!="ozone"],method = c("BoxCox
 
 
 ozoneTrans <- predict(ObjetoTrans2,ozone.df)
-#dim(ozoneTrans)
 
 ```
 
@@ -644,11 +638,9 @@ pairs( ~ozone + vh + wind + humidity + temp + ibh +dpg + ibt + vis + doy, data= 
 A continuación pasaremos a explorar los distintos modelos sobre los que resolver el problema de regresión para nuestro conjunto de datos. Al igual que en regresión, el procedimiento de validación que usaremos consistirá en tomar múltiples veces distintos conjuntos de entrenamiento sobre nuestro conjunto de datos (una vez transformados), con los que aprenderemos el modelo. Usaremos el resto del conjunto como test para evaluar cómo de bien predice el modelo aprendido con nuevos datos. Las proporciones utilizadas serán de nuevo del 70 % de los datos para train, y el 30 % para test.
 
 ```{r, echo=F, warning=F}
-  #Paso 5: Preparación de conjunto de train/test, y de las etiquetas train/test
   ozone.data <- ozoneTrans[,-1]
   ozone.label <- ozoneTrans[,1]
-  #sahd.label[sahd.label==0] <- -1 
-  
+
   train <- sample(nrow(ozone.df),0.7*nrow(ozone.df))
   ozone.train <- ozone.data[train,]
   ozone.test <- ozone.data[-train,]
@@ -671,7 +663,6 @@ calculateEtestRegression <- function(mr, test, ltest, s = 0){
     }else{
       mr.pred_test = predict(mr,as.matrix(test),type = "response", s = s)
     }
-    #mr.pred_test = predict(mr, test, type="response")
     mr.Etest <- mean((mr.pred_test-ltest)^2)
     
     return(list(mr.Etest,mr.pred_test))
@@ -761,8 +752,6 @@ testRegularizationRegression <- function(data, label, iter = 100){
           ldata.train <- label[train]
           ldata.test <- label[-train]
           
-          #Ponemos el link en las etiquetas pues a glmnet no se le puede pasar como argumento
-          #grid=10^seq(10,-2,length=100)
           ml_lasso <- cv.glmnet(as.matrix(data.train), ldata.train)
           ml = lm(ozone ~ ., data, train)
     
@@ -912,6 +901,13 @@ Como podemos observar, en este caso hemos obtenido un error menor al obtenido an
 
 ## Conclusiones
 
-Por los resultados que hemos ido obteniendo anteriormente, el modelo final escogido sería aplicar el método *lm* a la base de dats con los cuatro atributos: humidity, temp, ibt, doy. El error estimado sería del 20.05149\%.
+Por los resultados que hemos ido obteniendo anteriormente, el modelo final escogido sería aplicar el método `lm` a la base de datos con los cuatro atributos: humidity, temp, ibt, doy. El error estimado sería del 20.05149\%.
 
+En este caso, a diferencia del conjunto de clasificación, para los distintos modelos, número de atributos o transformaciones seleccionadas sí que se aprecian mejoras en los valores obtenidos del error. El conjunto de datos utilizado para la regresión se presta más a mejorar que el utilizado en clasificación.
+
+Por otra parte, aunque el modelo escogido presenta ventajas en cuanto al número de atributos (de acuerdo al criterio `BIC`), el modelo con todos los atributos es el que produce mejores resultados, tras aplicar transformaciones no lineales (en este caso polinómicas) sobre los atributos. 
+
+<!--
 En cuanto a las transformaciones no lineales obtenidas sobre todos los atributos, podemos ver que se corresponden con la relación entre ozone y el resto de atributos que podemos observar en la tabla de la sección de Preprocesamiento de datos. Observamos que los atributos vh, dpg, ibh y doy tienen un comportamiento cuadrático. El comportamiento de doy se confirma cuando probamos transformaciones no lineales sobre los cuatro atributos escogidos para el modelo final. 
+-->
+
