@@ -780,7 +780,7 @@ De forma análoga al ejercicio anterior, dibujamos la gráfica de *BIC* para det
 
   plot(stesting$bic, col = "blue", pch=19, type = "b")
   
-  ozone.data <- ozone.data[c(3,4,7,9)]
+  ozone.data_regu <- ozone.data[c(3,4,7,9)]
 
 ```
 
@@ -851,6 +851,19 @@ polynomialTransformGreedyRegression <- function(data,label,max_coeff, tol = 0){
 
 ```{r, echo=F,warning=F}
 
+l <- polynomialTransformGreedyRegression(ozone.data_regu,ozone.label,4, tol = 0.01)
+
+cat("Vector de exponentes: ", l[[1]],"\n")
+cat("Eout estimado: ",l[[2]],"\n")
+
+```
+
+En este caso vemos que sí hay transformaciones polinómicas que mejoran el ajuste, luego esta transformacion polinómica será la elegida para el modelo final.
+
+A modo de ampliación, aunque ya habíamos reducido nuestro conjunto de datos a cuatro atributos, vamos a probar las trasnformaciones no lineales sobre todos los atributos.
+
+```{r, echo=F,warning=F}
+
 l <- polynomialTransformGreedyRegression(ozone.data,ozone.label,4, tol = 0.01)
 
 cat("Vector de exponentes: ", l[[1]],"\n")
@@ -858,6 +871,10 @@ cat("Eout estimado: ",l[[2]],"\n")
 
 ```
 
-En este caso vemos que sí hay transformaciones polinómicas que mejoran el ajuste.
+Como podemos observar, en este caso hemos obtenido un error menor al obtenido anteriormente, aunque esto se ha hecho a expensas de utilizar más atributos, lo que conlleva una mayor carga de cómputo. Aunque en este ejercicio no es un problema dado la reducida dimensión del conjunto de datos a utilizar, es importante tener un balance entre el error producid y el número de atributos considerado.
 
 ## Conclusiones
+
+Por los resultados que hemos ido obteniendo anteriormente, el modelo final escogido sería aplicar el método *lm* a la base de dats con los cuatro atributos: humidity, temp, ibt, doy. El error estimado sería del 19.87646\%.
+
+En cuanto a las transformaciones no lineales obtenidas sobre todos los atributos, podemos ver que se corresponden con la relación entre ozone y el resto de atributos que podemos observar en la tabla de la sección de Preprocesamiento de datos. Observamos que los atributos vh, dpg y doy tienen un comportamiento cuadrático. El comportamiento de doy se confirma cuando probamos transformaciones no lineales sobre los cuatro atributos escogidos para el modelo final. 
