@@ -10,7 +10,7 @@ toc: yes
 
 ```{r, echo = FALSE, warnings = FALSE, results = FALSE, message = FALSE}
     #Fijamos la semilla para obtener siempre los mismos resultados
-    set.seed(3928423)
+    set.seed(123456789)
 
     #Añadimos librerías necesarias.
     library("caret")
@@ -411,7 +411,7 @@ Para contestar a la pregunta de si era necesario aplicar regularización a nuest
 
 ```
 
-Como podemos observar, el error medio obtenido es menor con el modelo sin regularizar, obteniendo así una respuesta negativa a la pregunta. Por tanto, seguiremos con el modelo sin regularización. <- JUANLU -> !!! LA TIA COMENTÓ AQUI ALGO DE LAS VARIANZAS CHICAS?? NO LO SÉ :S
+Como podemos observar, el error medio obtenido es menor con el modelo sin regularizar, obteniendo así una respuesta negativa a la pregunta. Por tanto, seguiremos con el modelo sin regularización.
 
 A modo de ampliación, comentar que el método de regularización lasso, cuando devuelve los coeficientes nulos significa que está despreciando estos atributos para la predicción. Si imprimimos los coeficientes correspondientes al valor de *lambda.1se* observamos que los atriburos que no selecciona para la predicción son: sbp, adiposity, typea, obesity y alcohol.
 
@@ -551,7 +551,7 @@ En la gráfica anterior podemos observar además que hay atributos que separan l
 ml <- glm(chd ~ typea+age , family = poisson(log), data = sahd.data, subset=train)
 
 
-ml.probtrain <- predict(ml.sahd,type="response")
+ml.probtrain <- predict(ml,type="response")
 ml.predtrain <- rep(0,length(ml.probtrain))
 ml.predtrain[ml.probtrain >= 0.5]=1
 ml.Ein = mean(ml.predtrain != lsahd.train)
@@ -574,7 +574,7 @@ coefs_recta_explicita <- function(coefs_recta_impl){
 
 ```
 
-Es decir, de entre el par de atributos que mejor aparenta separar los datos, el error es bastante elevado, y al optimizar el número de atributos, aunque el error sigue siendo alto, conseguimos reducirlo bastante. Esto nos permite observar que el modelo ajustado, dentro de la poca separabilidad de los datos, es de calidad (?)
+Es decir, de entre el par de atributos que mejor aparenta separar los datos, el error es bastante elevado, y al optimizar el número de atributos, aunque el error sigue siendo alto, conseguimos reducirlo bastante. Esto nos permite observar que el modelo ajustado, dentro de la poca separabilidad de los datos, es de calidad.
 
 También hemos comprobado que, en general, el conjunto de datos es poco sensible a la regularización y a las transformaciones. Sobre esto último, al no haber diferencias relevantes con respecto a ninguna transformación polinómica, se mantiene la linealidad en los datos, puesto que entre modelos similares, siempre es mejor quedarnos con el de mayor simplicidad.
 
@@ -587,9 +587,9 @@ Para el problema de regresión hemos elegido la base de datos de *Los Ángeles O
 - **wind**: Velocidad del viento, medida en mph.
 - **humidity:** Tanto por ciento de humedad.
 - **temp:** Temperatura
-- **ibh:** !!!
+- **ibh:** Altura sobre el nivel del mar (feet).
 - **dpg:** Gradiente de presión de Daggot.
-- **ibt:** 
+- **ibt:** Temperatura (ºF)
 - **vis:** La visibilidad medida en millas.
 - **day:** Día del año en el que se realizó la medición.
 
@@ -912,6 +912,6 @@ Como podemos observar, en este caso hemos obtenido un error menor al obtenido an
 
 ## Conclusiones
 
-Por los resultados que hemos ido obteniendo anteriormente, el modelo final escogido sería aplicar el método *lm* a la base de dats con los cuatro atributos: humidity, temp, ibt, doy. El error estimado sería del 19.87646\%.
+Por los resultados que hemos ido obteniendo anteriormente, el modelo final escogido sería aplicar el método *lm* a la base de dats con los cuatro atributos: humidity, temp, ibt, doy. El error estimado sería del 20.05149\%.
 
-En cuanto a las transformaciones no lineales obtenidas sobre todos los atributos, podemos ver que se corresponden con la relación entre ozone y el resto de atributos que podemos observar en la tabla de la sección de Preprocesamiento de datos. Observamos que los atributos vh, dpg y doy tienen un comportamiento cuadrático. El comportamiento de doy se confirma cuando probamos transformaciones no lineales sobre los cuatro atributos escogidos para el modelo final. 
+En cuanto a las transformaciones no lineales obtenidas sobre todos los atributos, podemos ver que se corresponden con la relación entre ozone y el resto de atributos que podemos observar en la tabla de la sección de Preprocesamiento de datos. Observamos que los atributos vh, dpg, ibh y doy tienen un comportamiento cuadrático. El comportamiento de doy se confirma cuando probamos transformaciones no lineales sobre los cuatro atributos escogidos para el modelo final. 
