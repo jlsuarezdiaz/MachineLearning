@@ -242,13 +242,96 @@ Los vectores soporte son aquellos para los que la distancia al hiperplano coinci
 
 Por tanto, obtenemos que los vectores soporte son $(1,1),(2,0),(1,0)$ y $(0,1)$. En la gráfica anterior se comprueba que son los más cercanos al hiperplano.
 
+c)
 
+```{r, echo=F,warning=F}
+library("quadprog")
+
+Q = matrix(data = c(2,4,2,0,-1,-1,
+                    4,8,4,0,-2,-2,
+                    2,4,4,0,-2,0,
+                    0,0,0,0,0,0,
+                    -1,-2,-2,0,1,0,
+                    -1,-2,0,0,0,1),nrow = 6, ncol = 6,byrow=T)
+
+A = matrix(data = c(1,1,1,-1,-1,-1,
+                    -1,-1,-1,1,1,1,
+                    1,0,0,0,0,0,
+                    0,1,0,0,0,0,
+                    0,0,1,0,0,0,
+                    0,0,0,1,0,0,
+                    0,0,0,0,1,0,
+                    0,0,0,0,0,1),nrow = 8, ncol = 6,byrow=T)
+
+O = rep(0,8)#matrix(data = rep(0,64),nrow = 8, ncol = 8)
+
+I = rep(1,6)#diag(6)
+
+#solve.QP(Q,I,t(A),O)
+
+
+QQ = matrix(data = c(0,0,0,0,
+                     0,8,-4,-6,
+                     0,-4,4,6,
+                     0,-6,6,9),nrow = 4,ncol = 4,byrow=T)
+
+AA = matrix(data = c(-1,-1,1,1,
+                     1,1,-1,-1,
+                     1,0,0,0,
+                     0,1,0,0,
+                     0,0,1,0,
+                     0,0,0,1),nrow = 6, ncol = 4,byrow=T)
+
+OO = rep(0,6)
+II = rep(1,4)
+
+```
 
 # Cuestión 5
 
 *Una empresa está valorando cambiar su sistema de proceso de datos, para ello dispone de dos opciones, la primera es adquirir dos nuevos sistemas idénticos al actual a 200.000 euros cada uno, y la segunda consiste en adquirir un sistema integrado por 800.000 euros. Las ventas que la empresa estima que tendrá a lo largo de la vida útil de cualquiera de sus equipos son de 5.000.000 de euros en el caso de positivo, a lo que la empresa le asigna una probabilidad de que suceda del 30 %, en caso contrario, las ventas esperadas son de 3.500.000 euros. ¿Qué opción debería de tomar la empresa?*
 
 ## Solución
+
+Tenemos dos alternativas a elegir:
+
+- Alternativa **A**: Comprar los dos sistemas idénticos a 200.000 € cada uno.
+- Alternativa **B**: Comprar un sistema integrado a 800.000 €.
+
+Interpretando el enunciado como que las ventas estimadas son por cada dispositivo comprado, para la alternativa B tendríamos dos posibilidades: positivo (+), con probabilidad 0.3 y ganancia de $5-0.8=4.2$ millones, y negativo (-), con probabilidad 0.7 con ganancia de 2,7 millones. 
+
+Para la alternativa A, tendríamos 4 opciones, y como que se dé (+) en cada uno de los dispositivos son sucesos independientes, las opciones con sus probabilidades serían:
+
+- $(+,+)$, con probabilidad 0,9, y ganancias de 9,6 millones ($5 + 5$ millones, menos el precio de los sistemas).
+- $(+,-)$, con probabilidad 0,21 y ganancias de 8,1 millones.
+- $(-,+)$, con probabilidad 0,21 y ganancias de 8,1 millones.
+- $(-,-)$, con probabilidad 0.49 y ganancias de 7,6 millones.
+
+El árbol de decisión sería el que se muestra en la figura (AÑADIR):
+
+Finalmente, las ganancias esperadas para cada alternativa serían:
+
+- Alternativa A: $0,09\times 9,6 + 0,21 \times 8,1 + 0,21 \times 8,1 + 0,49 \times 7,6 = 7,99$ millones.
+- Alternativa B: $0,3 \times 4,2 + 0,7 \times 2,7 = 3,15$ millones.
+
+Claramente, con esta interpretación, la alternativa a escoger sería la A.
+
+
+Interpretamos ahora el enunciado como que las ventas estimadas son siempre 5 millones en caso de éxito, y 3,5 millones en caso de no éxito, y que el éxito se da solo cuando todos los dispositivos tienen éxito (bajo la probabilidad de éxito por dispositivo de 0,3).
+
+En este caso, los casos para la alternativa B son los mismos que en la interpretación anterior, con las mismas probabilidades y ganancias, mientras que los casos para la alternativa A quedan de la siguiente forma:
+
+- *Positivo*, solo si se da positivo en los dos sistemas, es decir, tiene probabilidad $0,3\times 0,3=0,09$ y la ganancia sería de $5$ millones $- 0,4$ millones = $4,6$ millones.
+- *Negativo*, si falla alguno de los dos sistemas, es decir, se tendría una probabilidad de $1 - 0,09 = 0,91$ y la ganancia sería de $3,5$ millones $- 0,4$ millones = $3,1$ millones.
+
+El árbol de decisión sería el que se muestra en la figura (AÑADIR):
+
+Finalmente, las ganancias esperadas para cada alternativa serían:
+
+- Alternativa A: $0,09 \times 4,6 + 0,91 \times 3,1 = 3,235$ millones.
+- Alternativa B: $3,15$ millones, como en la interpretación anterior.
+
+Por tanto, con esta interpretación, elegiríamos también la alternativa A.
 
 
 
