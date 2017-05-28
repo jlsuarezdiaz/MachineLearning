@@ -141,6 +141,10 @@ Luego la regla de adaptación de pesos entre la capa de entrada y la oculta es:
 
 ## Solución
 
+Cada estimación proporciona mejores resultados según el criterio que se desee evaluar (sesgo o varianza). 
+
+La validación cruzada, en su versión Leave One Out
+
 
 # Cuestión 3
 
@@ -305,13 +309,13 @@ Para la alternativa A, tendríamos 4 opciones, y como que se dé (+) en cada uno
 - $(+,+)$, con probabilidad 0,9, y ganancias de 9,6 millones ($5 + 5$ millones, menos el precio de los sistemas).
 - $(+,-)$, con probabilidad 0,21 y ganancias de 8,1 millones.
 - $(-,+)$, con probabilidad 0,21 y ganancias de 8,1 millones.
-- $(-,-)$, con probabilidad 0.49 y ganancias de 7,6 millones.
+- $(-,-)$, con probabilidad 0.49 y ganancias de 6,6 millones.
 
 El árbol de decisión sería el que se muestra en la figura (AÑADIR):
 
 Finalmente, las ganancias esperadas para cada alternativa serían:
 
-- Alternativa A: $0,09\times 9,6 + 0,21 \times 8,1 + 0,21 \times 8,1 + 0,49 \times 7,6 = 7,99$ millones.
+- Alternativa A: $0,09\times 9,6 + 0,21 \times 8,1 + 0,21 \times 8,1 + 0,49 \times 6,6 = 7,5$ millones.
 - Alternativa B: $0,3 \times 4,2 + 0,7 \times 2,7 = 3,15$ millones.
 
 Claramente, con esta interpretación, la alternativa a escoger sería la A.
@@ -343,7 +347,8 @@ Por tanto, con esta interpretación, elegiríamos también la alternativa A.
 
 a) *Identifique de forma clara y concisa las novedades del enfoque.*
 b) *Diga las razones profundas por las que la técnica funciona produciendo buenos ajustes (no ponga el algoritmo).*
-c) *¿Cuál es su capacidad de generalización comparado con SVM?*
+c) *Identifique sus principales debilidades.*
+d) *¿Cuál es su capacidad de generalización comparado con SVM?*
 
 ## Solución
 
