@@ -143,7 +143,13 @@ Luego la regla de adaptación de pesos entre la capa de entrada y la oculta es:
 
 Cada estimación proporciona mejores resultados según el criterio que se desee evaluar (sesgo o varianza). 
 
-La validación cruzada, en su versión Leave One Out
+La validación cruzada, en su versión Leave One Out presenta muy poco sesgo, pero sin embargo tiene una gran varianza ya que todas las particiones que se realizan están muy correlacionadas (todas contienen todos los datos salvo uno). La validación cruzada $k$-fold permite reducir la varianza, aunque sigue habiendo solapamientos entre las distintas particiones escogidas para aprender, luego la varianza sigue siendo considerable.
+
+En cuanto a bagging, como lo que se está haciendo es promediar los resultados para varios conjuntos de entrenamiento, obtenidos del conjunto de datos mediante muestreo por reemplazamiento. Al realizar el promedio, por las propiedades de la varianza conseguimos reducirla, ya que el valor que obtenemos es inversamente proporcional a los conjuntos generados por bootstrapping. En general, no podemos garantizar que el sesgo sea tan bajo como en la validación cruzada. Sin embargo, hay estructuras, como los árboles de regresión y clasificación, que al ser utilizados con bagging producen bajo sesgo, luego en estos casos podemos reducir sesgo y varianza.
+
+En general, el error que proporciona la validación cruzada resulta más útil a la hora de decidir el modelo para ajustar un conjunto de datos, mientras que bagging puede ser más conveniente una vez fijado el modelo.
+
+
 
 
 # Cuestión 3
@@ -246,7 +252,47 @@ Los vectores soporte son aquellos para los que la distancia al hiperplano coinci
 
 Por tanto, obtenemos que los vectores soporte son $(1,1),(2,0),(1,0)$ y $(0,1)$. En la gráfica anterior se comprueba que son los más cercanos al hiperplano.
 
-c)
+c) 
+
+El problema dual consiste en minimizar la función $\frac{1}{2}\sum_{m=1}^6\sum_{n=1}^6y_ny_m\alpha_n\alpha_m\langle x_n,x_m\rangle-\sum_{n=1}^6\alpha_n$, para $\alpha = (\alpha_1,\dots,\alpha_6)\in\mathbb{R}^6$, sujeto a las restricciones $\sum_{n=1}^6 y_n\alpha_n = 0$ y $\alpha_n \ge 0$, con $n=1,\dots,N$. O equivalentemente, minmizar $\frac{1}{2}\alpha^TQ_D\alpha - 1_6^T\alpha$, sujeto a $A_D\alpha \ge 0_{8}$, donde:
+
+\[
+Q_D = 
+\begin{pmatrix}
+2 & 4 & 2 & 0 & -1 & -1 \\
+4 & 8 & 4 & 0 & -2 & -2 \\
+2 & 4 & 4 & 0 & -2 & 0 \\
+0 & 0 & 0 & 0 & 0 & 0 \\
+-1 & -2 & -2 & 0  & 1 & 0 \\
+-1 & -2 & 0 & 0 & 0 & 1
+\end{pmatrix}
+\]
+
+\[
+A_D = 
+\begin{pmatrix}
+1 & 1 & 1 & -1 & -1 & -1 \\
+-1 & -1 & -1 & 1 & 1 & 1 \\
+1 & 0 & 0 & 0 & 0 & 0 \\
+0 & 1 & 0 & 0 & 0 & 0 \\
+0 & 0 & 1 & 0  & 0 & 0 \\
+0 & 0 & 0 & 1 & 0 & 0 \\
+0 & 0 & 0 & 0 & 1 & 0 \\
+0 & 0 & 0 & 0 & 0 & 1
+\end{pmatrix}
+\]
+
+\[1_6 =
+\begin{pmatrix}
+1 \\ 1 \\ 1 \\ 1 \\ 1 \\ 1
+\end{pmatrix},
+
+0_8 = 
+\begin{pmatrix}
+0 \\ 0 \\ 0 \\ 0 \\ 0 \\0 \\ 0 \\ 0
+\end{pmatrix}\]
+
+Por tanto el problema asociado es un problema de programación cuadrática, cuya solución es el vector $\alpha$ buscado. Una vez obtenido $\alpha$ se puede calcular $w$ mediante la combinación lineal $w = \sum_{i=1}^{6}y_n\alpha_nx_n = \alpha_1(1,1)+\alpha_2(2,2)+\alpha_3(2,0)-\alpha_4(0,0)-\alpha_5(1,0)-\alpha_6(0,1)$. El intercept $b$ se puede obtener como $b = y_s - w^Tx_s$, donde $s$ es un índice para el cual $\alpha_s$ es estrictamente positivo.
 
 ```{r, echo=F,warning=F}
 library("quadprog")
@@ -352,6 +398,9 @@ d) *¿Cuál es su capacidad de generalización comparado con SVM?*
 
 ## Solución
 
+a) Parte de clasificadores simples y combina los resultados para obtener mejores soluciones.
+
+b) 
 
 # Cuestión 7
 
