@@ -62,7 +62,7 @@ Añadir imagenes:
 
 # Cuestión 1
 
-*Considere un modelo de red neuronal con dos capas totalmente conectadas: $n_I$ unidades de entrada, $n_H$ unidades ocultas y $n_O$ unidades de salida. Considere la función de rror definida por $J(w) = \frac{1}{2}\sum_{k=1}^{n_O}(t_k-c_k)^2=\frac{1}{2}\|t-c\|^2$, donde el vector $t$ representa los valores de la etiqueta, $c$ los valores calculados por la red y $w$ los pesos de la red. Considere que las entradas a la segunda capa se calculan como $z_k = \sum_{j=0}^{N_H}{y_jw_{kj}}$, donde el vector $y$ representa la salida de la capa oculta.*
+*Considere un modelo de red neuronal con dos capas totalmente conectadas: $n_I$ unidades de entrada, $n_H$ unidades ocultas y $n_O$ unidades de salida. Considere la función de error definida por $J(w) = \frac{1}{2}\sum_{k=1}^{n_O}(t_k-c_k)^2=\frac{1}{2}\|t-c\|^2$, donde el vector $t$ representa los valores de la etiqueta, $c$ los valores calculados por la red y $w$ los pesos de la red. Considere que las entradas a la segunda capa se calculan como $z_k = \sum_{j=0}^{N_H}{y_jw_{kj}}$, donde el vector $y$ representa la salida de la capa oculta.*
 
 a) *Deducir con todo detalle la regla de adaptación de los pesos entre la capa oculta y la capa de salida.*
 
@@ -166,6 +166,39 @@ En general, el error que proporciona la validación cruzada resulta más útil a
 
 ## Solución
 
+Para modificar el dato peor clasificado de toda la muestra, tenemos que buscar cada vez el dato $x_k$ para el cual $w^Tx_k$ es lo más lejano posible a su clase, o lo que es equivalente, que $y_kw^Tx_k < 0$ y sea menor que ese mismo valor para cualquier otro dato. Es decir, el dato $x_k$ para el cual se verifique que $y_kw^Tx_k = \min\{y_nw^Tx_n : n = 1,\dots,N\}$. Partiendo de esta idea desarrollamos el siguiente pseudocódugo:
+
+~~~ruby
+
+# Función para obtener el índice del dato peor clasificado:
+
+kmin(x,y,w){
+  k = 1
+  min = y[1]*t(w)*x[1]
+  
+  for i in 1...N
+      if y[i]*t(w)*x[i] < min
+         min = y[i]*t(w)*x[i]
+         k = i
+      end
+  end
+  return [k,min]
+}
+
+SVM(x,y,w0 = 0){
+  w = w0
+  
+  while algún dato mal clasificado
+    [k,min] = kmin(x,y,w)  # Obtenemos el dato peor clasificado
+    if min < 0
+        w = w + y[k]*x[k]  # Adaptamos pesos
+        
+  return w
+}
+
+~~~
+
+En el ejercicio 4 del cuestionario 1 se probó que la regla de adaptación de pesos del perceptron siempre produce un movimiento en la clasificación correcta para clasificar bien el dato asociado $x$. Al estar ajustando siempre el dato peor clasificado con este nuevo algoritmo, el dato estará siendo ajustado hasta que deje de ser el peor clasificado, momento en el que se pase a ajustar otro dato. Por tanto, los últimos datos en ser ajustados serán aquellos que no pueden llegar a estar tan mal clasificados como los demás inicialmente, es decir, los más cercanos al hiperplano óptimo, o equivalentemente, los vectores soporte.
 
 # Cuestión 4
 
@@ -196,7 +229,7 @@ plot(data,col = label + 3, pch = label + 17)
 
 ```
 
-Buscamos el hiperplano óptimo que separa los datos, y para ello buscamos un vector de pesos $(b w_1 w_2)$, con $w = (w_1 w_2)$ que minimice la función $\frac{1}{2}w^Tw = \frac{1}{2}(w_1^2+w_2^2)$ sujeta a las restricciones $y_n(w^Tx_n + b) \ge 1$, donde cada $x_n$ representa a un dato y cada $y_n$ su etiqueta asociada.
+Buscamos el hiperplano óptimo que separa los datos, y para ello buscamos un vector de pesos $(b,w_1,w_2)$, con $w = (w_1,w_2)$ que minimice la función $\frac{1}{2}w^Tw = \frac{1}{2}(w_1^2+w_2^2)$ sujeta a las restricciones $y_n(w^Tx_n + b) \ge 1$, donde cada $x_n$ representa a un dato y cada $y_n$ su etiqueta asociada.
 
 Las restricciones que obtenemos para los puntos dados son las siguientes:
 
@@ -220,7 +253,7 @@ Sumando las inecuaciones (1) y (5), obtenemos que $w_2 \ge 2$, y sumando las ine
   (0,1) & \to & b \le -3 
 \end{eqnarray}
 
-Por tanto, observamos que tomando $b = -3$ se satisfacen todas las restricciones, y además se minimiza $\frac{1}{2}w^Tw$ sobre estas restricciones. Por tanto, el vector de pesos asociados al hiperplano es $(b w_1 w_2)=(-3 2 2)$ y por tanto el hiperplano óptimo que separa los datos viene dado por la ecuación $2u + 2v = 3$. En la siguiente gráfica se muestra la recta obtenida:
+Por tanto, observamos que tomando $b = -3$ se satisfacen todas las restricciones, y además se minimiza $\frac{1}{2}w^Tw$ sobre estas restricciones. Por tanto, el vector de pesos asociados al hiperplano es $(b,w_1,w_2)=(-3, 2, 2)$ y por tanto el hiperplano óptimo que separa los datos viene dado por la ecuación $2u + 2v = 3$. En la siguiente gráfica se muestra la recta obtenida:
 
 ```{r, echo=F,warning=F}
 coefs_recta_explicita <- function(coefs_recta_impl){
@@ -238,7 +271,7 @@ Finalmente, el margen óptimo viene dado por la fórmula $M = \frac{1}{\|w\|} = 
 
 b)
 
-Los vectores soporte son aquellos para los que la distancia al hiperplano coincide con el margen, o equivalentemente, aquellos para los que se da la igualdad en la restricción asociada. Para ello,  para cada dato y con el vector de pesos obtenido $(b w_1 w_2)=(-3 2 2)$, calculamos $y_n(w^Tx_n + b)$ y vemos si es igual a 1.
+Los vectores soporte son aquellos para los que la distancia al hiperplano coincide con el margen, o equivalentemente, aquellos para los que se da la igualdad en la restricción asociada. Para ello,  para cada dato y con el vector de pesos obtenido $(b,w_1,w_2)=(-3,2,2)$, calculamos $y_n(w^Tx_n + b)$ y vemos si es igual a 1.
  
 
 \begin{eqnarray}
@@ -254,11 +287,10 @@ Por tanto, obtenemos que los vectores soporte son $(1,1),(2,0),(1,0)$ y $(0,1)$.
 
 c) 
 
-El problema dual consiste en minimizar la función $\frac{1}{2}\sum_{m=1}^6\sum_{n=1}^6y_ny_m\alpha_n\alpha_m\langle x_n,x_m\rangle-\sum_{n=1}^6\alpha_n$, para $\alpha = (\alpha_1,\dots,\alpha_6)\in\mathbb{R}^6$, sujeto a las restricciones $\sum_{n=1}^6 y_n\alpha_n = 0$ y $\alpha_n \ge 0$, con $n=1,\dots,N$. O equivalentemente, minmizar $\frac{1}{2}\alpha^TQ_D\alpha - 1_6^T\alpha$, sujeto a $A_D\alpha \ge 0_{8}$, donde:
+El problema dual consiste en minimizar la función $\frac{1}{2}\sum_{m=1}^6\sum_{n=1}^6y_ny_m\alpha_n\alpha_m\langle x_n,x_m\rangle-\sum_{n=1}^6\alpha_n$, para $\alpha = (\alpha_1,\dots,\alpha_6)\in\mathbb{R}^6$, sujeto a las restricciones $\sum_{n=1}^6 y_n\alpha_n = 0$ y $\alpha_n \ge 0$, con $n=1,\dots,6$. O equivalentemente, minmizar $\frac{1}{2}\alpha^TQ_D\alpha - 1_6^T\alpha$, sujeto a $A_D\alpha \ge 0_{8}$, donde:
 
 \[
-Q_D = 
-\begin{pmatrix}
+Q_D = \begin{pmatrix}
 2 & 4 & 2 & 0 & -1 & -1 \\
 4 & 8 & 4 & 0 & -2 & -2 \\
 2 & 4 & 4 & 0 & -2 & 0 \\
@@ -269,8 +301,7 @@ Q_D =
 \]
 
 \[
-A_D = 
-\begin{pmatrix}
+A_D = \begin{pmatrix}
 1 & 1 & 1 & -1 & -1 & -1 \\
 -1 & -1 & -1 & 1 & 1 & 1 \\
 1 & 0 & 0 & 0 & 0 & 0 \\
@@ -282,14 +313,25 @@ A_D =
 \end{pmatrix}
 \]
 
-\[1_6 =
-\begin{pmatrix}
-1 \\ 1 \\ 1 \\ 1 \\ 1 \\ 1
-\end{pmatrix},
+\[1_6 = \begin{pmatrix}
+1 \\
+1 \\
+1 \\
+1 \\
+1 \\
+1
+\end{pmatrix}\]
 
-0_8 = 
-\begin{pmatrix}
-0 \\ 0 \\ 0 \\ 0 \\ 0 \\0 \\ 0 \\ 0
+\[
+0_8 = \begin{pmatrix}
+0 \\
+0 \\
+0 \\
+0 \\
+0 \\
+0 \\
+0 \\
+0
 \end{pmatrix}\]
 
 Por tanto el problema asociado es un problema de programación cuadrática, cuya solución es el vector $\alpha$ buscado. Una vez obtenido $\alpha$ se puede calcular $w$ mediante la combinación lineal $w = \sum_{i=1}^{6}y_n\alpha_nx_n = \alpha_1(1,1)+\alpha_2(2,2)+\alpha_3(2,0)-\alpha_4(0,0)-\alpha_5(1,0)-\alpha_6(0,1)$. El intercept $b$ se puede obtener como $b = y_s - w^Tx_s$, donde $s$ es un índice para el cual $\alpha_s$ es estrictamente positivo.
@@ -348,16 +390,22 @@ Tenemos dos alternativas a elegir:
 - Alternativa **A**: Comprar los dos sistemas idénticos a 200.000 € cada uno.
 - Alternativa **B**: Comprar un sistema integrado a 800.000 €.
 
-Interpretando el enunciado como que las ventas estimadas son por cada dispositivo comprado, para la alternativa B tendríamos dos posibilidades: positivo (+), con probabilidad 0.3 y ganancia de $5-0.8=4.2$ millones, y negativo (-), con probabilidad 0.7 con ganancia de 2,7 millones. 
+Interpretando el enunciado como que las ventas estimadas son por cada dispositivo comprado, para la alternativa B tendríamos dos posibilidades: positivo (+), con probabilidad 0.3 y ganancia de $5-0,8=4,2$ millones, y negativo (-), con probabilidad 0.7 con ganancia de 2,7 millones. 
 
 Para la alternativa A, tendríamos 4 opciones, y como que se dé (+) en cada uno de los dispositivos son sucesos independientes, las opciones con sus probabilidades serían:
 
-- $(+,+)$, con probabilidad 0,9, y ganancias de 9,6 millones ($5 + 5$ millones, menos el precio de los sistemas).
+- $(+,+)$, con probabilidad 0,09, y ganancias de 9,6 millones ($5 + 5$ millones, menos el precio de los sistemas).
 - $(+,-)$, con probabilidad 0,21 y ganancias de 8,1 millones.
 - $(-,+)$, con probabilidad 0,21 y ganancias de 8,1 millones.
 - $(-,-)$, con probabilidad 0.49 y ganancias de 6,6 millones.
 
-El árbol de decisión sería el que se muestra en la figura (AÑADIR):
+El árbol de decisión sería el que se muestra en la figura \ref{fig:5a}.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=10 cm]{./images/5a.jpg}
+\caption{Árbol de decisión.\label{fig:5a}}
+\end{figure}
 
 Finalmente, las ganancias esperadas para cada alternativa serían:
 
@@ -374,7 +422,14 @@ En este caso, los casos para la alternativa B son los mismos que en la interpret
 - *Positivo*, solo si se da positivo en los dos sistemas, es decir, tiene probabilidad $0,3\times 0,3=0,09$ y la ganancia sería de $5$ millones $- 0,4$ millones = $4,6$ millones.
 - *Negativo*, si falla alguno de los dos sistemas, es decir, se tendría una probabilidad de $1 - 0,09 = 0,91$ y la ganancia sería de $3,5$ millones $- 0,4$ millones = $3,1$ millones.
 
-El árbol de decisión sería el que se muestra en la figura (AÑADIR):
+El árbol de decisión sería el que se muestra en la figura \ref{fig:5b}.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=10 cm]{./images/5b.jpg}
+\caption{Árbol de decisión.\label{fig:5b}}
+\end{figure}
+
 
 Finalmente, las ganancias esperadas para cada alternativa serían:
 
@@ -382,8 +437,6 @@ Finalmente, las ganancias esperadas para cada alternativa serían:
 - Alternativa B: $3,15$ millones, como en la interpretación anterior.
 
 Por tanto, con esta interpretación, elegiríamos también la alternativa A.
-
-
 
 
 
@@ -398,15 +451,25 @@ d) *¿Cuál es su capacidad de generalización comparado con SVM?*
 
 ## Solución
 
-a) Parte de clasificadores simples y combina los resultados para obtener mejores soluciones.
+a) El enfoque de la técnica Boosting consiste en partir de clasificadores débiles, que proporcionan un error de clasificación no necesariamente bueno, pero superior al de soluciones aleatorias, y combina los resultados para obtener mejores soluciones.
 
-b) 
+b) Boosting produce buenos ajustes porque, a pesar de que es capaz de ajustarse en gran medida a la muestra de entrenamiento, también es capaz de incrementar los márgenes en la clasificación, y un mayor margen implica una mayor capacidad de generalización. Por eso, si el clasificador débil es adecuado, Boosting puede aprender en gran medida de la muestra de entrenamiento sin llegar a producir sobreajustes.
+
+c) Una de las debilidades del Boosting es que depende en gran medida del conjunto de datos y del clasificador débil en que se basa. Si no se escoge adecuadamente el clasificador, se puede producir sobreaprendizaje, si el clasificador es demasiado complejo, o subajuste, si el clasificador es demasiado débil. Además, los algoritmos de Boosting pueden ser sensibles al ruido uniforme.
+
+d) Como ya se ha comentado, Boosting maximiza los márgenes, pero SVM también lo hace, luego en este sentido tienen el mismo comportamiento. Sin embargo, SVM se limita a ajustar un hiperplano, mientras que Boosting permite un ajuste más complejo, por lo que puede reducir aún más el error de generalización.
 
 # Cuestión 7
 
 *¿Cuál es a su criterio lo que permite a clasificadores como Random Forest basados en un conjunto de clasificadores simples aprender de forma más eficiente? ¿Cuáles son las mejoras que introduce frente a los clasificadores simples? ¿Es Random Forest óptimo en algún sentido? Justifique con precisión las contestaciones.*
 
+
 ## Solución
 
+Los clasificadores como Random Forest aprenden de forma más eficiente, ya que los clasificadores simples en los que se basa (es decir, árboles de decisión) se construyen de forma que sean lo menos correlados posible. Al coger muestras de predictores de tamaño menor esctricto que el conjunto de predictores, se está favoreciendo la no correlación, puesto que en caso contrario, si hubiera un predictor fuerte en el conjunto de datos, muchos de los árboles usarían ese predictor, por lo que serían más parecidos. Al estar poco correlados, cada árbol podrá ajustarse más a un escenario distinto, manteniendo siempre un parecido con el escenario real a aprender. Esto le da más capacidad de ajustarse bien a nuevos escenarios desconocidos, por lo que puede aprender de forma más eficiente. También es eficiente computacionalmente al ser fácilmente paralelizable.
+
+En comparación con los clasificadores simples, que pueden ajustarse demasiado a los datos que aprenden, Random Forest permite una capacidad mucho más amplia de generalización, ya que, por lo ya comentado, ajusta internamente muchos clasificadores simples que están poco correlados. Por tanto, Random Forest presenta una gran robustez frente al sobreaprendizaje. En este sentido, también permite reducir la varianza una cantidad considerable, incluso mayor que con bagging, luego es óptimo en este término.
+
+  
 
 
