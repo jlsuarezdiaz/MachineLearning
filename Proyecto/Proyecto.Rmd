@@ -29,21 +29,26 @@ toc: yes
   
     #LECTURA DE LOS DATOS
     har.train <- read.table("./UCIHARDataset/train/X_train.txt", sep="", head = F)
+    lhar.train <- read.table("./UCIHARDataset/train/y_train.txt", sep="", head = F)
+    har.data.train <- cbind(lhar.train, har.train)
+    
     har.test <- read.table("./UCIHARDataset/test/X_test.txt", sep="", head = F)
+    lhar.test <- read.table("./UCIHARDataset/test/y_test.txt", sep="", head = F)
+    har.data.test <- cbind(lhar.test, har.test)
+
 
     summary(har.train[,1:10])
 ```
 
 ## Preprocesado de datos.
-- Los datos están normalizados.
-- 
+- Los datos están normalizados y escalados [-1,1]
+- Para los métodos que utilizan métricas tenemos que quitar asimetrías.
 
 ### Modificación de los atributos cualitativos.
 - No los haylos.
 
 
 ```{r echo = FALSE, warning=FALSE, results = FALSE, message = FALSE}
-
     #PREPROCESAMIENTO DE LOS DATOS
 ```
 
@@ -68,13 +73,28 @@ Para que se vea mejor el funcionamiento, vamos a elegir el atributo que presente
 
 
 ### Llamada al método PreProcess.
-
+<!--
 Una vez entendidas las modificaciones que vamos a realizar a los datos, utilizaremos el método preProcess que se encarga de realizar todas estas modificaciones sobre el conjunto de datos pasado como argumento. Como ya hemos comentado, no vamos a aplicar el método *PCA*, luego la llamada quedaría de la siguiente forma:
+-->
+
+Llamamos al método PreProcess con Boxcox: quitar asimetría, PCA: para eliminar atributos
 
 ```{r, echo=T, warning=F}
 
-ObjetoTrans = preProcess(har.train,method = c("BoxCox", "pca"), 0.95)
-har.trans <- predict(ObjetoTrans,har.train)
+#har.train <- har.train + 1.1
+#Transformamos los datos para poder aplicar BoxCox, los transladamos al [0,2]
+
+ObjetoTrans.train <- preProcess(har.train,method = c("pca"), 0.8)
+ObjetoTrans.test <- preProcess(har.test, method = c("pca"), 0.8)
+#0.95 -> 102 componentes
+#0.9 -> 63 componentes
+#0.85 -> 40 componentes
+#0.8 -> 26 componentes
+#0.75 -> 16 componentes
+#0.7 -> 10 componentes
+
+har.trans.train <- predict(ObjetoTrans.train, har.train)
+har.trans.test <- predict(ObjetoTrans.test, har.test)
 
 ```
 
@@ -84,17 +104,18 @@ A continuación pasaremos a explorar los distintos modelos sobre los que resolve
 
 ```{r, echo=F, warning=F}
   #Paso 5: Preparación de conjunto de train/test, y de las etiquetas train/test
-  sahd.data <- sahdTrans[,-ncol(sahdTrans)]
-  sahd.label <- sahdTrans[,ncol(sahdTrans)]
+  har.train <- har.trans.train  
+  har.test <- har.trans.test
   
+  #Ahora los escalamos y centramos
+  ObjetoTrans.train <- preProcess(har.train,method = c("center", "scale"))
+  ObjetoTrans.test <- preProcess(har.test,method = c("center", "scale"))
   
-  train <- sample(nrow(sahd),0.7*nrow(sahd))
-  sahd.train <- sahd.data[train,]
-  sahd.test <- sahd.data[-train,]
+  har.trans.train <- predict(ObjetoTrans.train, har.train)
+  har.trans.test <- predict(ObjetoTrans.test, har.test)
   
-  #Etiquetas
-  lsahd.train <- sahd.label[train]
-  lsahd.test <- sahd.label[-train]
+  har.train <- har.trans.train  
+  har.test <- har.trans.test
   
 ```
 
