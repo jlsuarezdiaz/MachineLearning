@@ -2,3 +2,11 @@ Hacer validación cuando tenemos train y test¿? -> Dentro de cada modelo hacemo
 Fichero de datos ¿? -> Ya hablará con nico.
 Etiquetas de más de un valor ¿? -> En redes neuronales, Boosting y Random Forest no hace falta. Para SVM si. Ha dicho que tengamos cuidado con los valores de las etiquetas que a lo mejor necesitamos cambiarlos.
 Datos normalizados ¿? -> Nos podemos ahorrar center y scale, las simetrías en realidad solo son para los basados en métricas, pero si tenemos que probar lineales y SVM si pueden hacer falta (a lo mejor estoy mezclando esto con la pregunta de arriba, pero me suena que ha dicho SVM en los dos sitios, en etiquetas seguro)
+
+
+Hace falta volver a poner pseudocódigos de P1 ¿?
+Soluciones de ILS se comparan con actual o con la mejor obtenida ¿?
+Numero de exitos en el enfriamiento se considera siempre que una solución pasa el criterio de aceptación (aunque lo haga como peor) o  ¿?
+Mutaciones en ES e ILS completamente al azar o repartidas (permutaciones etc) ¿?
+La constante K del enfriamiento no existe no¿?
+Criterios de parada de la ES: se dice num_evals y num_exitos, pero entonces que pinta en todo esto la temperatura final¿?
