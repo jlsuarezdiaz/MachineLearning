@@ -1,0 +1,110 @@
+---
+title: "auxi"
+output: pdf_document
+---
+
+
+
+```{r, echo=F,warning=F}
+
+# Validación (una sola vez)
+validateFamilies <- function(data, train, label){
+  #Muestra
+  #train <- sample(nrow(data),0.7*nrow(data))
+  
+  #Datos
+  #data.train <- data[train,]
+  #data.test <-  data[-train,]
+  
+  #Etiquetas
+  #label.train <- label[train]
+  #label.test <- label[-train]
+  test <- data[train,]
+  ltrain <- label[-train]
+  ltest <- label[train]
+  
+  print(train)
+  
+  #Modelos
+  #binomial
+  #ml.binomial1 <- glm(label ~ ., family = binomial(logit), data = data, subset=-train)
+  #ml.binomial2 <- glm(label ~ ., family = binomial(probit), data = data, subset=-train)
+  #ml.binomial3 <- glm(label ~ ., family = binomial(cauchit), data = data, subset=-train)
+  #gaussiano
+  #ml.gaussian1 <- glm(label ~ ., family = gaussian(identity), data = data, subset=-train)
+  #ml.gaussian2 <- glm(label ~ ., family = gaussian(log), data = data, subset=-train, start=rep(0, ncol(data)+1))
+  #poisson
+  #ml.poisson1 <- glm(label ~ ., family = poisson(log), data = data, subset=-train)
+  
+  #quasi
+  #ml.quasi1 <- glm(label ~ ., family = quasi(link = "identity", variance = "constant"), data = data, subset=-train)
+
+  #quasibinomial
+  #ml.quasibinomial1 <- glm(label ~ ., family = quasibinomial(link = "logit"), data = data, subset=-train)
+  #quasipoisson
+  #ml.quasipoisson1 <- glm(label ~ ., family = quasipoisson(link = "log"), data = data, subset=-train)  
+
+  models <- list(ml.binomial1)
+  #models <- list(ml.binomial1, ml.binomial2, ml.binomial3, ml.gaussian1, ml.gaussian2, ml.poisson1, ml.quasi1, ml.quasibinomial1, ml.quasipoisson1)
+  #modelNames <- c("Binomial - Logit", "Binomial - Probit", "Binomial - Cauchit", "Gaussian - Identity", "Gaussian - Log", "Poisson", "Quasi", "Quasibinomial","Quasipoisson")
+  modelNames <- c("Binomial")
+  testFamilies(models, test, ltrain, ltest, modelNames)
+  
+}
+
+# Función para realizar multiples validaciones
+CValidation <- function(train,ltrain){
+  #per <- sample(nrow(train),nrow(train))
+  #train <- train[per,]
+  #ltrain <- ltrain[per]
+  
+ 
+
+  # Comprobamos si hay desbalanceado de las etiquetas
+  count_1 = sum(ltrain==1)
+  count_0 = sum(ltrain==0)
+  count = count_1 + count_0
+  
+  if(count_1/count <= 0.1 || count_0/count <= 0.1){
+      #cosas()
+  }
+  
+  
+  #Vector de posiciones de cada tipo 
+  train.l1 <- which(ltrain == 1)
+  train.l2 <- which(ltrain == 0)
+  
+  per1 <- sample(nrow(train.l1),nrow(train.l1))
+  per2 <- sample(nrow(train.l2),nrow(train.l2))
+  
+  
+  #5 subconjuntos
+  tam_part1 <- as.integer(length(per1)/5)
+  tam_part2 <- as.integer(length(per2)/5)
+  
+  train1 <- c(t)
+  
+  #train1 <- c(train.l1[1:(length(train)/5)], train.l2[1:(length(train)/5)])
+  #train2 <- c(train.l1[(length(train)/5+1): (2*length(train)/5)],train.l2[(length(train)/5+1) : (2*length(train)/5)])
+  #train3 <- c(train.l1[(2*length(train)/5+1): (3*length(train)/5)],train.l2[(2*length(train)/5+1): (3*length(train)/5)])
+  #train4 <- c(train.l1[(3* length(train)/5+1):  (4 * length(train)/5)], train.l2[(3*length(train)/5+1):  (4 * length(train)/5)])
+  #train5 <- c(train.l1[(4*length(train)/5+1):   length(train)], train.l2[(4*length(train)/5+1):   length(train)])
+  
+  #l <- replicate(n = rep, expr = validateFamilies(data,label))
+  #l es una matriz 3D de rep x num_modelos x 2 (Ein,Eout)
+  #l[,,i] -> experimento i-ésimo
+  #[,i,] -> Ein / Eout de cada modelo en los distintos experimentos (i=1 Ein, i=2 Eout)
+  #[i,,] -> Ein y Eout para el modelo i-ésimo en cada experimento
+  
+  l1 <- validateFamilies(train,train1, ltrain)
+  l2 <- validateFamilies(train,train2, ltrain)
+  l3 <- validateFamilies(train,train3, ltrain)
+  l4 <- validateFamilies(train,train4, ltrain)
+  l5 <- validateFamilies(train,train5, ltrain)
+  
+  l <- matrix(c(l1,l2,l3,l4,l5), ncol = 2)
+
+  apply(FUN = mean, X = l, MARGIN = c(1,2))
+}
+
+```
