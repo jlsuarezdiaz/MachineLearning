@@ -84,11 +84,7 @@ Llamamos al método PreProcess con Boxcox: quitar asimetría, PCA: para eliminar
 
 ```{r, echo=T, warning=F}
 
-#har.train <- har.train + 1.1
-#Transformamos los datos para poder aplicar BoxCox, los transladamos al [0,2]
-
-ObjetoTrans.train <- preProcess(har.train,method = c("pca"), 0.8)
-ObjetoTrans.test <- preProcess(har.test, method = c("pca"), 0.8)
+ObjetoTrans <- preProcess(har.train,method = c("pca", "BoxCox", "center", "scale"), thres = 0.8)
 #0.95 -> 102 componentes
 #0.9 -> 63 componentes
 #0.85 -> 40 componentes
@@ -96,8 +92,8 @@ ObjetoTrans.test <- preProcess(har.test, method = c("pca"), 0.8)
 #0.75 -> 16 componentes
 #0.7 -> 10 componentes
 
-har.trans.train <- predict(ObjetoTrans.train, har.train)
-har.trans.test <- predict(ObjetoTrans.test, har.test)
+har.trans.train <- predict(ObjetoTrans, har.train)
+har.trans.test <- predict(ObjetoTrans, har.test)
 
 ```
 
@@ -107,16 +103,6 @@ A continuación pasaremos a explorar los distintos modelos sobre los que resolve
 
 ```{r, echo=F, warning=F}
   #Paso 5: Preparación de conjunto de train/test, y de las etiquetas train/test
-  har.train <- har.trans.train  
-  har.test <- har.trans.test
-  
-  #Ahora los escalamos y centramos
-  ObjetoTrans.train <- preProcess(har.train,method = c("center", "scale"))
-  ObjetoTrans.test <- preProcess(har.test,method = c("center", "scale"))
-  
-  har.trans.train <- predict(ObjetoTrans.train, har.train)
-  har.trans.test <- predict(ObjetoTrans.test, har.test)
-  
   har.train <- har.trans.train  
   har.test <- har.trans.test
   
@@ -244,51 +230,79 @@ testFamilies <- function(models, test, ltrain, ltest, modelNames = NULL){
 ```{r, echo=F,warning=F}
 
 # Validación (una sola vez)
-validateFamilies <- function(data,label){
+validateFamilies <- function(data, train, label){
   #Muestra
-  train <- sample(nrow(data),0.7*nrow(data))
+  #train <- sample(nrow(data),0.7*nrow(data))
   
   #Datos
-  data.train <- data[train,]
-  data.test <-  data[-train,]
+  #data.train <- data[train,]
+  #data.test <-  data[-train,]
   
   #Etiquetas
-  label.train <- label[train]
-  label.test <- label[-train]
+  #label.train <- label[train]
+  #label.test <- label[-train]
+  test <- data[train,]
+  ltrain <- label[-train,]
+  ltest <- label[train,]
   
   #Modelos
   #binomial
-  ml.binomial1 <- glm(chd ~ ., family = binomial(logit), data = data, subset=train)
-  ml.binomial2 <- glm(chd ~ ., family = binomial(probit), data = data, subset=train)
-  ml.binomial3 <- glm(chd ~ ., family = binomial(cauchit), data = data, subset=train)
+  ml.binomial1 <- glm(chd ~ ., family = binomial(logit), data = data, subset=-train)
+  ml.binomial2 <- glm(chd ~ ., family = binomial(probit), data = data, subset=-train)
+  ml.binomial3 <- glm(chd ~ ., family = binomial(cauchit), data = data, subset=-train)
   #gaussiano
-  ml.gaussian1 <- glm(chd ~ ., family = gaussian(identity), data = data, subset=train)
-  ml.gaussian2 <- glm(chd ~ ., family = gaussian(log), data = data, subset=train, start=rep(0, ncol(data)+1))
+  ml.gaussian1 <- glm(chd ~ ., family = gaussian(identity), data = data, subset=-train)
+  ml.gaussian2 <- glm(chd ~ ., family = gaussian(log), data = data, subset=-train, start=rep(0, ncol(data)+1))
   #poisson
-  ml.poisson1 <- glm(chd ~ ., family = poisson(log), data = data, subset=train)
+  ml.poisson1 <- glm(chd ~ ., family = poisson(log), data = data, subset=-train)
   
   #quasi
-  ml.quasi1 <- glm(chd ~ ., family = quasi(link = "identity", variance = "constant"), data = data, subset=train)
+  ml.quasi1 <- glm(chd ~ ., family = quasi(link = "identity", variance = "constant"), data = data, subset=-train)
 
   #quasibinomial
-  ml.quasibinomial1 <- glm(chd ~ ., family = quasibinomial(link = "logit"), data = data, subset=train)
+  ml.quasibinomial1 <- glm(chd ~ ., family = quasibinomial(link = "logit"), data = data, subset=-train)
   #quasipoisson
-  ml.quasipoisson1 <- glm(chd ~ ., family = quasipoisson(link = "log"), data = data, subset=train)  
+  ml.quasipoisson1 <- glm(chd ~ ., family = quasipoisson(link = "log"), data = data, subset=-train)  
 
   models <- list(ml.binomial1, ml.binomial2, ml.binomial3, ml.gaussian1, ml.gaussian2, ml.poisson1, ml.quasi1, ml.quasibinomial1, ml.quasipoisson1)
   modelNames <- c("Binomial - Logit", "Binomial - Probit", "Binomial - Cauchit", "Gaussian - Identity", "Gaussian - Log", "Poisson", "Quasi", "Quasibinomial","Quasipoisson")
   
-  testFamilies(models, data.test, label.train, label.test, modelNames)
+  testFamilies(models, test, ltrain, ltest, modelNames)
   
 }
 
 # Función para realizar multiples validaciones
-repValidation <- function(rep,data,label){
-  l <- replicate(n = rep, expr = validateFamilies(data,label))
+CValidation <- function(train,ltrain){
+  per <- sample(nrow(train),nrow(train))
+  train <- train[per,]
+  ltrain <- ltrain[per]
+  
+  #Vector de posiciones de cada tipo 
+  train.l1 <- which(ltrain == 1)
+  train.l2 <- which(ltrain == 0)
+  
+  #5 subconjuntos
+  train1 <- cbind(train.l1[1:length(train)/5], train.l2[1:length(train)/5])
+  train2 <- cbind(train.l1[length(train)/5 : 2*length(train)/5],train.l2[length(train)/5 : 2*length(train)/5])
+  train3 <- cbind(train.l1[ 2*length(train)/5:  3*length(train)/5],train.l2[2*length(train)/5: 3*length(train)/5])
+  train4 <- cbind(train.l1[3 * length(train)/5:  4 * length(train)/5], train.l2[3*length(train)/5:  4 * length(train)/5])
+  train5 <- cbind(train.l1[4 * length(train)/5:   length(train)], train.l2[4 * length(train)/5:   length(train)])
+  
+  #l <- replicate(n = rep, expr = validateFamilies(data,label))
   #l es una matriz 3D de rep x num_modelos x 2 (Ein,Eout)
   #l[,,i] -> experimento i-ésimo
   #[,i,] -> Ein / Eout de cada modelo en los distintos experimentos (i=1 Ein, i=2 Eout)
   #[i,,] -> Ein y Eout para el modelo i-ésimo en cada experimento
+  
+  l1 <- validateFamilies(train,train1, ltrain)
+  print("l1")
+  l2 <- validateFamilies(train,train2, ltrain)
+  l3 <- validateFamilies(train,train3, ltrain)
+  l4 <- validateFamilies(train,train4, ltrain)
+  l5 <- validateFamilies(train,train5, ltrain)
+  
+  l <- matrix(c(l1,l2,l3,l4,l5), ncol = 2)
+
   apply(FUN = mean, X = l, MARGIN = c(1,2))
 }
 
@@ -296,9 +310,16 @@ repValidation <- function(rep,data,label){
 
 Una vez definidos los modelos y las funciones a usar, procedemos al ajuste de los distintos modelos y al análisis de sus errores:
 
+### 1, no 1
+
 ```{r, echo=F, warning=F}
 # Comprobamos qué método proporciona un menor error de validación con múltiples validaciones
-repValidation(rep = 100, sahd.data, sahd.label)
+#1, no 1
+lhar.train.1 <- lhar.train
+lhar.test.1 <- lhar.test
+lhar.train.1[lhar.train.1 != 1] <- 0
+#lhar.test.1[lhar.test.1 != 1] <- 0
+CValidation(har.train, lhar.train.1)
 
 # Confirmamos que el modelo que mejor generaliza es el de Poisson
 ml.sahd <- glm(chd ~ ., family = poisson(log), data = sahd.data, subset=train, start=rep(0, ncol(sahd.data)+1))
