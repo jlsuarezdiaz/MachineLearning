@@ -6,6 +6,9 @@ output: pdf_document
 toc: yes
 ---
 
+
+################# SPOILER: Gilfoyle deja la empresa
+
 \clearpage
 
 ```{r, echo = FALSE, warnings = FALSE, results = FALSE, message = FALSE}
