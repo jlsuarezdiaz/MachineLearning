@@ -227,41 +227,77 @@ testFamilies <- function(models, test, ltrain, ltest, modelNames = NULL){
 ```
 
 ```{r, echo=F,warning=F}
+  balance <- function(train, test, ltrain, ltest){
+    #Juntamos datos con etiquetas
+    train.aux <- cbind(train, ltrain)
+    test.aux <- cbind(test, ltest)
+    
+    
+    train.aux$ltrain <- as.factor(train.aux$ltrain)
+    test.aux$ltest <- as.factor(test.aux$ltest)
+    
+    #Balanceamos
+    train.aux <- SMOTE(ltrain~., train.aux, perc.over = 100, perc.under = 200)
+    test.aux <- SMOTE(ltest~., test.aux, perc.over = 100, perc.under = 200)
+    
+    #Volvemos a separar datos de etiquetas
+    train.aux$ltrain <- as.numeric(train.aux$ltrain)
+    test.aux$ltest <- as.numeric(test.aux$ltest)
+  
+    
+    train <- train.aux[,-ncol(train.aux)]
+    ltrain <- train.aux[,ncol(train.aux)] - 1
+  
+    
+    test <- test.aux[,-ncol(test.aux)]
+    ltest <- test.aux[,ncol(test.aux)] - 1
+    
+    return(list(train,test,ltrain,ltest))
+  }
+```
+
+```{r, echo=F,warning=F}
 validateLinearModels <- function(train,test,ltrain,ltest){
   count_1 = sum(ltrain==1)
   count_0 = sum(ltrain==0)
   count = count_1 + count_0
   
-  if(count_1/count <= 0.1 || count_0/count <= 0.1){
-      #cosas()
+  if(count_1/count <= 0.2 || count_0/count <= 0.2){
+      l <- balance(train, test, ltrain, ltest)
+      train <- l[[1]]
+      test <- l[[2]]
+      ltrain <- l[[3]]
+      ltest <- l[[4]]
   }
+  
+  print(summary(ltrain))
   
   #Modelos
   #binomial
-  print("Evaluando Binomial - Logit...")
+  #print("Evaluando Binomial - Logit...")
   ml.binomial1 <- glm(ltrain ~ ., family = binomial(logit), data = train)
-  print("Evaluando Binomial - Probit...")
+  #print("Evaluando Binomial - Probit...")
   ml.binomial2 <- glm(ltrain ~ ., family = binomial(probit), data = train)
-  print("Evaluando Binomial - Cauchit...")
+  #print("Evaluando Binomial - Cauchit...")
   ml.binomial3 <- glm(ltrain ~ ., family = binomial(cauchit), data = train)
   #gaussiano
-  print("Evaluando Gaussian - Identity...")
+  #print("Evaluando Gaussian - Identity...")
   ml.gaussian1 <- glm(ltrain ~ ., family = gaussian(identity), data = train)
-  print("Evaluando Gaussian - Log...")
+  #print("Evaluando Gaussian - Log...")
   ml.gaussian2 <- glm(ltrain ~ ., family = gaussian(log), data = train, start=rep(0, ncol(train)+1))
   #poisson
-  print("Evaluando Poisson - Log...")
+  #print("Evaluando Poisson - Log...")
   ml.poisson1 <- glm(ltrain ~ ., family = poisson(log), data = train)
   
   #quasi
-  print("Evaluando Quasi - Identity...")
+  #print("Evaluando Quasi - Identity...")
   ml.quasi1 <- glm(ltrain ~ ., family = quasi(link = "identity", variance = "constant"), data = train)
 
   #quasibinomial
-  print("Evaluando Quasibinomial...")
+  #print("Evaluando Quasibinomial...")
   ml.quasibinomial1 <- glm(ltrain ~ ., family = quasibinomial(link = "logit"), data = train)
   #quasipoisson
-  print("Evaluando Quasipoisson...")
+  #print("Evaluando Quasipoisson...")
   ml.quasipoisson1 <- glm(ltrain ~ ., family = quasipoisson(link = "log"), data = train)  
 
   #models <- list(ml.gaussian2,ml.poisson1)
