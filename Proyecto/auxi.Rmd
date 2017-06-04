@@ -3,6 +3,193 @@ title: "auxi"
 output: pdf_document
 ---
 
+LO QUE HABIA ABAJO.
+## Regularización
+
+A continuación nos planteamos la necesidad de regularización, sobre el mejor modelo que hemos obtenido. Para ello utilizamos la regularización lasso (least absolute shrinkage and selection operator). Lasso es un método que lleva a cabo la regularización a la misma vez que realiza selección de características. 
+
+El objetivo se basa en reducir el error de predicción, para ello, se ocupa de reducir la función:
+
+\[
+  R(\beta) = \sum_{i=1}^{n}(y_i - x_i\omega)^2 + \lambda \sum_{i=1}^{p}|\omega_i|
+\]
+
+donde $n$ es el número de muestras, $p$ el número de atributos y $w$ el vector de pesos solución. Así, obtiene diferentes valores de $\lambda$. Entre estos valores devueltos, podemos considerar dos de ellos:
+
+- *lambda.min*, que nos devuelve el valor del $\lambda$ para el que se minimiza el error obtenido.
+- *lambda.1se*. Aunque el $\lambda$ anterior sea menor, presenta una mayor dependencia de las particiones seleccionadas en la validación cruzada. La regla `1se` (one standard error), elige un valor de $\lambda$ para lo suficiente cercano a `lambda.min` para el cual el modelo obtenido sea lo suficiente simple, reduciendo así la dependencia del error respecto a las validaciones.
+
+Podemos contemplar cualquiera de estos valores de $\lambda$ para regularizar nuestro modelo. 
+
+Para contestar a la pregunta de si era necesario aplicar regularización a nuestra base de datos, realizamos 100 experimentos en los que, para diferentes subconjuntos de datos de nuestra muestra calculamos el error al regularizar con ambos valores de $\lambda$ y al no regularizar. Debemos quedarnos con el modelo que menos error presente.
+
+```{r, echo=F,warning=F}
+  #library(glmnet)
+  #El método para llamar a GLM con lasso (elasticnet regularization) es glmnet
+
+  #En la documentación aqui parece que haya más families.
+
+  #Mediante validación cruzada sacamos el mejor lambda
+
+  testRegularization <- function(data, label, iter = 100){
+      error1 <- 0
+      error2 <- 0
+      error3 <- 0
+      
+      for(i in 1:iter){
+          train <- sample(nrow(data),0.7*nrow(data))
+          data.train <- data[train,]
+          data.test <- data[-train,]
+          #Etiquetas
+          ldata.train <- label[train]
+          ldata.test <- label[-train]
+          
+          ml_lasso <- cv.glmnet(as.matrix(data.train), ldata.train, family="poisson")
+          ml = ml.gaussian2 <- glm(chd ~ ., family = gaussian(log), data = data, subset=train, start=rep(0, ncol(data)+1))
+    
+          error1 <- error1 + calculateEtest(ml_lasso,data.test,ldata.test,ml_lasso$lambda.min)[[1]]
+          error2 <- error2 +calculateEtest(ml_lasso,data.test,ldata.test,ml_lasso$lambda.1se)[[1]]
+          error3 <- error3 +calculateEtest(ml,data.test,ldata.test)[[1]]
+      }
+    
+      return(c(error1/iter,error2/iter,error3/iter))
+  }
+
+  l <- testRegularization(sahd.data, sahd.label, 100)
+  
+  cat("Etest con lambda min: ",l[1],"\n")
+  cat("Etest con lambda 1se: ",l[2],"\n")
+  cat("Etest con el modelo original: ",l[3],"\n")
+
+```
+
+Como podemos observar, el error medio obtenido es menor con el modelo sin regularizar, obteniendo así una respuesta negativa a la pregunta. Por tanto, seguiremos con el modelo sin regularización.
+
+A modo de ampliación, comentar que el método de regularización lasso, cuando devuelve los coeficientes nulos significa que está despreciando estos atributos para la predicción. Si imprimimos los coeficientes correspondientes al valor de *lambda.1se* observamos que los atriburos que no selecciona para la predicción son: sbp, adiposity, typea, obesity y alcohol.
+
+```{r, echo=F,warning=F}
+  ml_lasso <- cv.glmnet(as.matrix(sahd.train), lsahd.train, family="poisson")
+  coeffs.1se <- coef(ml_lasso, s = ml_lasso$lambda.1se)
+  print(coeffs.1se)
+```
+
+A continuación, en la selección del número de atributos a utilizar, veremos que dichos atributos son, en efecto, algunos de los que participan en menos combinaciones "óptimas", por lo tanto, serán algunos de los menos relevantes.
+
+## Optimización del número de atributos para el modelo seleccionado
+
+Para optimizar el número de atributos para el modelo seleccionado, vamos a hacer uso de la función llamada `regsubsets`, esta función junto con las opciones de `method = "exhaustive"` y `nbest = 1` realizará una búsqueda exhaustiva del mejor atributo (el que produce menor error cuadrático), la mejor pareja de atributos, el mejor trío, etcétera. 
+
+El método nos proporciona el siguiente esquema en el que podemos apreciar las combinaciones de atributos elegidos.
+
+```{r, echo=F,warning=F}
+
+  #method = "exhaustive" para que no sea greedy.
+  testing <- regsubsets(chd ~ ., data = sahd.data, nbest = 1, method = "exhaustive")
+
+  #Obtenemos una tablita con los que es mejor coger.
+  stesting <- summary(testing)
+  print(stesting$outmat)
+```
+
+En este punto nos planteamos cuántos atributos utilizar para nuestro modelo. Claramente, cuantos más atributos utilicemos menor será el error producido en la muestra. Esto lo podemos corroborar dibujando la gráfica del error por mínimos cuadrados en función del número de atributos elegidos.
+
+```{r, echo=F,warning=F}
+
+  #Dibujar -> testing$ress
+  plot(testing$ress, col = "red", pch = 19, type = "b")
+```
+
+Sin embargo, debemos de plantearnos qué número de atributos sería el óptimo si penalizáramos también el número de atributos utilizados. Es decir, cuándo una función que combine el error producido junto con el número de atributos utilizado se minimiza. Para ello utilizamos la función *BIC*, cuya gráfica en función del número de atributos podemos observar a continuación: 
+
+```{r, echo=F,warning=F}
+
+  plot(stesting$bic, col = "blue", pch = 19, type = "b")
+```
+  
+  El criterio BIC (Bayesian Information Criterion) se basa en seleccionar el modelo con menor función BIC asociada. La función BIC es una función que depende logarítmicamente del tamaño de la muestra $n$, el número de atributos $k$ y el estimador máximo verosímil, $\hat{L}$. Concretamente, $BIC = \ln(n)k-2\ln(\hat{L})$ Dicha función alcanza un mínimo con 5 atributos, por tanto, este será el número de atributos que utilizaremos para nuestro modelo.
+  
+```{r, echo=F,warning=F}
+
+  sahd.data <- sahd.data[,c(2,3,5,6,9)]
+```
+
+## Transformación de atributos
+
+A continuación, nos planteamos la búsqueda de una transformación polinómica de los atributos para la cual nuestro modelo tenga una mayor capacidad de aprender y predecir nuestro conjunto de datos. Para ello utilizamos un algoritmo de búsqueda greedy. Para cada atributo, vamos eligiendo distintos exponentes y nos quedamos con el exponente que proporcione menor error de validación. Cuando llegamos al siguiente atributo, aplicamos el mismo procedimiento, manteniendo para los atributos anteriores el mejor exponente encontrado. Además, como cuando dos modelos proporcionan resultados similares siempre es mejor quedarse con el más simple, fijaremos una tolerancia para la cual, si no hay mejoras significativas en la nueva transformación, nos quedemos con la transformación mejor obtenida previamente, que tendrá un exponente menor y por tanto será más simple el ajuste.
+
+```{r, echo=F,warning=F}
+testPolyTransform <- function(data,label){
+  #Muestra
+  train <- sample(nrow(data),0.7*nrow(data))
+  
+  #Datos
+  data.train <- data[train,]
+  data.test <-  data[-train,]
+  
+  #Etiquetas
+  label.train <- label[train]
+  label.test <- label[-train]
+  
+  #Usamos el modelo ganador
+  ml <- glm(chd ~., family = gaussian(log), data = data, subset =train,start=rep(0, ncol(data)+1))
+  
+  models <- list(ml)
+  
+  testFamilies(models, data.test, label.train, label.test)
+  
+}
+
+testPolyTransformRep <- function(rep,data,label){
+   l <- replicate(n = rep, expr = testPolyTransform(data,label))
+  #l es una matriz 3D de rep x num_modelos x 2 (Ein,Eout)
+  #l[,,i] -> experimento i-ésimo
+  #[,i,] -> Ein / Eout de cada modelo en los distintos experimentos (i=1 Ein, i=2 Eout)
+  #[i,,] -> Ein y Eout para el modelo i-ésimo en cada experimento
+  apply(FUN = mean, X = l, MARGIN = c(1,2))
+}
+
+# Devuelve un vector de coeficientes para cada atributo
+# tol: Nivel de tolerancia: si dos Eout se diferencian en menos de Eout, escogemos el coeficiente más simple
+polynomialTransformGreedy <- function(data,label,max_coeff, tol = 0){
+  transform <- data
+  coeffs <- c()
+
+  for(i in 1:ncol(transform)){
+    bestEout <- 1
+    bestInd <- 0
+    for(j in 1:max_coeff){
+      transform[,i] <- I(data[,i]^j)
+      v <- testPolyTransformRep(100,transform,label)
+      # Comparamos con Etest
+      if(v[2] + tol < bestEout){
+        bestEout <- v[2]
+        bestInd <- j
+      }
+      cat("Attr = ",i,", Exp = ",j,", ","Ein = ", v[1], "Eout = ",v[2],"\n")
+    }
+    #Nos quedamos con el mejor coeficiente obtenido para el atributo
+    transform[,i] <- I(data[,i]^bestInd)
+    coeffs <- c(coeffs,bestInd)
+  }
+  # Por ser greedy con el mecanismo escogido el mejor Eout va a ser el de la última iteración
+  list(coeffs,bestEout)
+}
+```
+
+Aplicamos el algoritmo. Los resultados obtenidos son:
+
+```{r, echo=F,warning=F}
+l <- polynomialTransformGreedy(sahd.data,sahd.label,6, tol = 0.01)
+cat("Vector de exponentes: ", l[[1]])
+cat("Eout estimado: ",l[[2]])
+
+```
+
+Vemos que, para exponentes de hasta tamaño 6 no se aprecian mejoras significativas con respecto a los coeficientes lineales iniciales.
+
+## Conclusiones.
+
+
 
 
 ```{r, echo=F,warning=F}
