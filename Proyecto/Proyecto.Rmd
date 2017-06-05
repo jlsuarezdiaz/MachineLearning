@@ -1,4 +1,4 @@
----
+?---
 title: "PROYECTO FINAL: AJUSTE DE MODELOS NO-LINEALES"
 author: "Nuria Rodríguez Barroso, Juan Luis Suárez Díaz."
 date: "`r format(Sys.time(), '%d de %B de %Y')`"
@@ -20,6 +20,9 @@ toc: yes
     library("leaps")
     library("DMwR")
     library("neuralnet")
+    library("nnet")
+    library("randomForest")
+    library("gbm")
 ```
 
 
@@ -77,7 +80,7 @@ Llamamos al método PreProcess con Boxcox: quitar asimetría, PCA: para eliminar
 
 ```{r, echo=T, warning=F}
 
-ObjetoTrans <- preProcess(har.train,method = c("pca", "BoxCox", "center", "scale"), thres = 0.7y)
+ObjetoTrans <- preProcess(har.train,method = c("pca", "BoxCox", "center", "scale"), thres = 0.7)
 #0.95 -> 102 componentes
 #0.9 -> 63 componentes
 #0.85 -> 40 componentes
@@ -332,7 +335,7 @@ En primer lugar aplicamos validación cruzada para optimizar:
 Como queremos usarlo para clasificación debemos usar el parámetro: lineout = T.
 
 ```{r, echo=F,warning=F}
-  train.data <- cbind(har.train, lhar.train)
+  #train.data <- cbind(har.train, lhar.train)
 ```
 
 Lo hacemos hasta 25 porque peta. La función tune obtiene por validación cruzada el error para un tamaño de capa oculta prefijada.
@@ -341,7 +344,7 @@ Lo hacemos hasta 25 porque peta. La función tune obtiene por validación cruzad
   tuneNNet <- function(data, label){
     #Probamos los parámetros con tune.nnet
     for(i in 1:30){
-        s[i] <- (tune.nnet(x = data, y = label, size = i))$best.performance
+        s[i] <- (tune.nnet(x = data, y = label, size = i))
     }
     
     s <- cbind(c(1:30), s)
@@ -352,6 +355,8 @@ Lo hacemos hasta 25 porque peta. La función tune obtiene por validación cruzad
 
 ```{r, echo=F,warning=F}
   tuneNNet(har.train, lhar.train)
+
+tune_nnet <- tune(nnet,train.x = har.train, train.y = as.factor(lhar.train[,1]), ranges = list(size = 1:50))
 ```
 
 El número de unidades óptimo para una sola capa oculta es: 19. 
@@ -396,7 +401,7 @@ Probamos ahora entre las redes neuronales de:
           pr.nn_ <- pnn.m$net.result*(max(ltrain)-min(ltrain))+min(ltrain)
           test.r <- (ltest)*(max(ltrain)-min(ltrain))+min(ltrain)
 
-          error <- error + sum((test.r - pr.nn_)^2)/nrow(test)
+          error < error  + sum((test.r - pr.nn_)^2)/nrow(test)
        }   
        
        m[j] <- error/5
@@ -414,6 +419,50 @@ Probamos ahora entre las redes neuronales de:
 
 #Máquina de Soporte de Vectores
 
-Hay que normalizar los datos!!
+- Los datos están normalizados.
+
+```{r, echo=F,warning=F}
+
+tc <- tune.control(cross = 5)
+
+#svm_model <- svm(x = har.train, y = factor(lhar.train[,1]), kernel = "radial",gamma = 0.1 )
+svm_tune <- tune(svm, train.x = har.train, train.y = factor(lhar.train[,1]), kernel = "radial", ranges = list(gamma=c(0.01,0.1,1,10)), tunecontrol = tc)
+```
+
 
 #Boosting
+
+```{r, echo=F,warning=F}
+
+  gbm_algorithm <- gbm(y ~ ., data = train_dataset, distribution = "adaboost", n.trees = 5000)
+
+```
+
+
+#RandomForest
+
+
+
+Hay dos parámetros importantes para predecir:
+1- Número de árboles (ntree)
+2- Número de variables aleatorias usadas en cada árbol (mtry)
+
+Calculamos el número de variables aleatorias usadas en cada árbol óptimo:
+
+```{r, echo=F,warning=F}
+    #La función tuneRF calcula a partir del valor por defecto de mtry el valor óptimo de mtry para el randomForest
+    #Convertimos la etiqueta a un factor para que haga clasificación
+    flhar.train <- as.factor(lhar.train[,1])
+    best.mtry <- tuneRF(har.train, flhar.train, stepFactor = 1, improve = 0.02, ntree = 500)
+```
+
+-> Es sqrt(9) que es el valor optimo en teoria.
+
+
+Calculamos el número de árboles óptimo:
+
+```{r, echo=F,warning=F}
+   best.params <- tune(method = randomForest, har.train, flhar.train, ranges = list(ntree = c(10,20,30), mtry = 3))
+
+```
+
