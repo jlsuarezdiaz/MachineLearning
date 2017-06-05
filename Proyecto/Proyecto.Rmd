@@ -69,17 +69,17 @@ Así, el cálculo del error para cada modelo propuesto consistirá en el número
 ```{r, echo=F,warning=F}
   #Estudiamos si hay desbalanceo
   print("El porcentaje de elementos con etiqueta 1 en el train es: ")
-  print(sum(lhar.train == 1)/nrow(lhar.train))
+  print(100*sum(lhar.train == 1)/nrow(lhar.train))
   print("El porcentaje de elementos con etiqueta 2 en el train es: ")
-  print(sum(lhar.train == 2)/nrow(lhar.train))
+  print(100*sum(lhar.train == 2)/nrow(lhar.train))
   print("El porcentaje de elementos con etiqueta 3 en el train es: ")
-  print(sum(lhar.train == 3)/nrow(lhar.train))
+  print(100*sum(lhar.train == 3)/nrow(lhar.train))
   print("El porcentaje de elementos con etiqueta 4 en el train es: ")
-  print(sum(lhar.train == 4)/nrow(lhar.train))
+  print(100*sum(lhar.train == 4)/nrow(lhar.train))
   print("El porcentaje de elementos con etiqueta 5 en el train es: ")
-  print(sum(lhar.train == 5)/nrow(lhar.train))
+  print(100*sum(lhar.train == 5)/nrow(lhar.train))
   print("El porcentaje de elementos con etiqueta 6 en el train es: ")
-  print(sum(lhar.train == 6)/nrow(lhar.train))
+  print(100*sum(lhar.train == 6)/nrow(lhar.train))
 ```
 
 
