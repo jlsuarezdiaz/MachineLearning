@@ -804,7 +804,7 @@ confussion.svm <- table(svm.pred,lhar.test[,1])
 ```{r, echo=T, warning=F}
 maboost_model <- maboost(x = har.train, y = as.factor(lhar.train[,1]))  
 
-maboost.pred <- predict(maboot_model,har.test)
+maboost.pred <- predict(maboost_model,har.test)
 Eout.maboost <- sum(maboost.pred != lhar.test[,1])/length(maboost.pred)
 confussion.maboost <- table(maboot.pred,lhar.test[,1])
 
