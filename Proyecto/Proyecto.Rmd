@@ -500,22 +500,7 @@ predictions <- function(train, test, ltrain, ltest, modelNames = NULL){
   
   
   
-  #
-  #gaussiano
-  #
-  #
-  #poisson
-  #
-  
-  #quasi
-  #
-
-  #quasibinomial
-  #
-  #quasipoisson
-  # 
-  #models <- list(ml.binomial1, ml.binomial2, ml.binomial3, ml.gaussian1, ml.gaussian2, ml.poisson1, ml.quasi1, ml.quasibinomial1, ml.quasipoisson1)
-    #modelNames <- c("Gaussian","Poisson")
+ 
     modelNames <- c("Binomial - Logit", "Binomial - Probit", "Binomial - Cauchit", "Gaussian - Identity", "Gaussian - Log", "Poisson", "Quasi", "Quasibinomial","Quasipoisson")
   rownames(M) <- modelNames
   
@@ -534,6 +519,7 @@ predictions <- function(train, test, ltrain, ltest, modelNames = NULL){
 P <- predictions(har.train,har.test,lhar.train[,1],lhar.test[,1])
 
 # Matriz de confusión para Poisson (que proporciona el menor error)
+Eout.linear <- P[[2]][6]
 table(P[[1]][6,],lhar.test[,1])
 
 
@@ -809,7 +795,32 @@ Calculamos el número de variables aleatorias usadas en cada árbol óptimo:
 Calculamos el número de árboles óptimo:
 
 ```{r, echo=F,warning=F}
-   best.params <- tune(method = randomForest, har.train, flhar.train, ranges = list(ntree = c(10,20,30), mtry = 3))
+   best.params <- tune(method = randomForest, har.train, flhar.train, ranges = list(ntree = c(10,20,30), mtry = 3), tunecontrol = tc)
 
 ```
 
+Evaluamos sobre los datos test el mejor modelo obtenido en la validación cruzada.
+
+```{r, echo=F,warning=F}
+
+rf_model <- randomForest(x = har.train, y = flhar.train, ntree = 30, mtry = 3)
+summary(rf_model)
+
+
+```
+
+```{r, echo=F,warning=F}
+
+rf.pred <- predict(rf_model,har.test)
+Eout.rf <- sum(rf.pred != lhar.test[,1])/length(rf.pred)
+table(rf.pred,lhar.test[,1])
+  
+```
+
+```{r, echo=F,warning=F}
+
+model_errors <- c(Eout.linear,Eout.svm,Eout.rf)
+model_names <- c("Lineal - Poisson", "SVM", "Random Forest")
+names(model_errors) <- model_names
+model_errors
+```
