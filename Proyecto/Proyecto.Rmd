@@ -520,7 +520,7 @@ P <- predictions(har.train,har.test,lhar.train[,1],lhar.test[,1])
 
 # Matriz de confusión para Poisson (que proporciona el menor error)
 Eout.linear <- P[[2]][6]
-table(P[[1]][6,],lhar.test[,1])
+confussion.linear <- table(P[[1]][6,],lhar.test[,1])
 
 
 ```
@@ -757,7 +757,7 @@ summary(svm_model)
 
 svm.pred <- predict(svm_model,har.test)
 Eout.svm <- sum(svm.pred != lhar.test[,1])/length(svm.pred)
-table(svm.pred,lhar.test[,1])
+confussion.svm <- table(svm.pred,lhar.test[,1])
   
 ```
 
@@ -813,14 +813,17 @@ summary(rf_model)
 
 rf.pred <- predict(rf_model,har.test)
 Eout.rf <- sum(rf.pred != lhar.test[,1])/length(rf.pred)
-table(rf.pred,lhar.test[,1])
+confussion.rf <- table(rf.pred,lhar.test[,1])
   
 ```
 
 ```{r, echo=F,warning=F}
 
 model_errors <- c(Eout.linear,Eout.svm,Eout.rf)
+model_confussions <- list(confussion.linear,confussion.svm,confussion.rf)
 model_names <- c("Lineal - Poisson", "SVM", "Random Forest")
 names(model_errors) <- model_names
+names(model_confussions) <- model_names
 model_errors
+model_confussions
 ```
