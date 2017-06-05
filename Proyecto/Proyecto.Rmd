@@ -86,17 +86,17 @@ Así, el cálculo del error para cada modelo propuesto consistirá en el número
 ```{r, echo=F,warning=F}
 
   print("El porcentaje de elementos con etiqueta 1 en el test es: ")
-  print(sum(lhar.test == 1)/nrow(lhar.test))
+  print(100*sum(lhar.test == 1)/nrow(lhar.test))
   print("El porcentaje de elementos con etiqueta 2 en el test es: ")
-  print(sum(lhar.test == 2)/nrow(lhar.test))
+  print(100*sum(lhar.test == 2)/nrow(lhar.test))
   print("El porcentaje de elementos con etiqueta 3 en el test es: ")
-  print(sum(lhar.test == 3)/nrow(lhar.test))
+  print(100*sum(lhar.test == 3)/nrow(lhar.test))
   print("El porcentaje de elementos con etiqueta 4 en el test es: ")
-  print(sum(lhar.test == 4)/nrow(lhar.test))
+  print(100*sum(lhar.test == 4)/nrow(lhar.test))
   print("El porcentaje de elementos con etiqueta 5 en el test es: ")
-  print(sum(lhar.test == 5)/nrow(lhar.test))
+  print(100*sum(lhar.test == 5)/nrow(lhar.test))
   print("El porcentaje de elementos con etiqueta 6 en el test es: ")
-  print(sum(lhar.test == 6)/nrow(lhar.test))
+  print(100*sum(lhar.test == 6)/nrow(lhar.test))
   
   
     
@@ -767,10 +767,48 @@ confussion.svm <- table(svm.pred,lhar.test[,1])
 ```{r, echo=F,warning=F}
 
   #gbm_algorithm <- gbm(y ~ ., data = har.train, distribution = "adaboost", n.trees = 5000)
-  #gbm_algorithm <- gbm
+  blhar.train <- lhar.train[,1]
+  blhar.test <- lhar.test[,1]
+   
+  boost_mat <- matrix(nrow = 6, ncol = length(blhar.test))
+  
+  for(i in 1:6){
+  
+    ltrain_i <- blhar.train
+    ltest_i <- blhar.test
+         
+    ltrain_i[blhar.train != i] <- 0
+    ltrain_i[blhar.train == i] <- 1
+    ltest_i[blhar.test != i] <- 0
+    ltest_i[blhar.test == i] <- 1
+    
+    boost_model <- gbm(ltrain_i ~ ., data = har.train, distribution = "adaboost", n.trees = 5000)
+    
+    boost_mat[i,] <- predict(boost_model,har.test,n.trees = 5000,type = "response" )
+  
+  }
+  
+  boost.pred <- vector(length = length(blhar.test))
+  for(i in 1:length(blhar.test)){
+      boost.pred[i] = which(boost_mat[,i]==max(boost_mat[,i]))[1]
+  }
+  
+  Eout.adagbm <- sum(boost.pred!=blhar.test)/length(blhar.test)
+  confussion.adabgm <- table(boost.pred,blhar.test)
+  
 
 ```
 
+
+
+```{r, echo=T, warning=F}
+maboost_model <- maboost(x = har.train, y = as.factor(lhar.train[,1]))  
+
+maboost.pred <- predict(maboot_model,har.test)
+Eout.maboost <- sum(maboost.pred != lhar.test[,1])/length(maboost.pred)
+confussion.maboost <- table(maboot.pred,lhar.test[,1])
+
+```
 
 #RandomForest
 
@@ -819,9 +857,9 @@ confussion.rf <- table(rf.pred,lhar.test[,1])
 
 ```{r, echo=F,warning=F}
 
-model_errors <- c(Eout.linear,Eout.svm,Eout.rf)
-model_confussions <- list(confussion.linear,confussion.svm,confussion.rf)
-model_names <- c("Lineal - Poisson", "SVM", "Random Forest")
+model_errors <- c(Eout.linear,Eout.svm,Eout.rf,Eout.adagbm,Eout.maboost)
+model_confussions <- list(confussion.linear,confussion.svm,confussion.rf,confussion.adabgm,confussion.maboost)
+model_names <- c("Lineal - Poisson", "SVM", "Random Forest","Adaboost - BGM", "Adaboost - MABoost")
 names(model_errors) <- model_names
 names(model_confussions) <- model_names
 model_errors
