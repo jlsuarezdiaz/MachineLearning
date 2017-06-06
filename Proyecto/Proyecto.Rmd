@@ -6,7 +6,11 @@ output: pdf_document
 toc: yes
 ---
 
-
+<!--
+  6- Por qué SVM tarda mucho -> Porque los datos están muy juntos -- lo de espradao y etar andando
+  7- boosting -> cuidad con el ruido -> regularizar
+  8- En neuronas: Tasa de aprendizaje, mini/max, funcion de error (gradiente estocastic o no)
+-->
 \clearpage
 
 ```{r, echo = FALSE, warnings = FALSE, results = FALSE, message = FALSE}
@@ -23,6 +27,8 @@ toc: yes
     library("nnet")
     library("randomForest")
     library("gbm")
+    library("adabag")
+    library("maboost")
 ```
 
 
@@ -55,10 +61,12 @@ En cuanto a las etiquetas, nos encontramos ante un problema de clasificación mu
   4. SITTING
   5. STANDING
   6. LAYING
+  
+Podemos observar fijándonos en lo que representa cada etiqueta que los tres primeros valores de las etiquetas hacen referencia a actividades muy similares, relacionadas con andar, mientras que las otras tres tienen la misma propiedad, representando estados de no movimiento. Podemos intuir por tanto, en vista a lo que representan las distintas clases, que los datos de las tres primeras clases serán fácilmente separables de los datos de las tres restantes, si las medidas que se han tomado son representativas del movimiento, mientras que a priori será más complicado distinguir dentro de cada grupo de clases, cuál será la asignación correcta.
 
-Por tanto, para la aplicación de aquellos métodos que precisen de clasificación binaria para un buen funcionamiento utilizaremos la técnica de *one vs all*, la cual consistirá en dividir nuestro problema de clasificación multiclase en seis problemas de clasificación binaria de la forma: clase_i VS no_clase_i. 
+Al tratarse de un problema de clasificación multiclase, para la aplicación de aquellos métodos que precisen de clasificación binaria para un buen funcionamiento utilizaremos la técnica de *One vs One*, la cual consistirá en dividir nuestro problema de clasificación multiclase en $\binom{6}{2} = 15$ problemas de clasificación binaria de la forma clase_i vs clase_j con $i,j \in [1,6]$,
 
-Así, el cálculo del error para cada modelo propuesto consistirá en el número de errores cometidos. Esto es, número de muestras con etiqueta asignada de forma errónea. Para aquellos modelos que precisen de una adaptación a subproblemas de clasificación binaria, obtendremos seis vectores con la probabilidad de asignación de cada una de las seis etiquetas disponibles. Por tanto, le asignaremos a cada elemento la etiqueta que obtenga una mayor probabilidad, calculando el error en este caso de la misma forma que para el resto de modelos.
+Así, el cálculo del error para cada modelo propuesto consistirá en el número de errores cometidos. Esto es, número de muestras con etiqueta asignada de forma errónea. Para aquellos modelos que precisen de una adaptación a subproblemas de clasificación binaria, obtendremos quince vectores con la probabilidad de asignación de cada una de las seis etiquetas disponibles. Por tanto, le asignaremos a cada elemento la etiqueta que obtenga una mayor probabilidad, calculando el error en este caso de la misma forma que para el resto de modelos.
 
 ## Preprocesado de datos.
 
@@ -104,10 +112,6 @@ Así, el cálculo del error para cada modelo propuesto consistirá en el número
   
   Podemos observar que no existe desbalance entre las seis clases contempladas, luego no podemos despreciar ninguna. 
   
-  PREGUNTAR AQUI CON CUANTAS DESBALANCEAMOS PORQUE:
-  
-  Ahora bien, a la hora de realizar los subproblemas *one vs all* nos encontraremos con un balanceo aproximado del 20\% - 80\% al 15\%-85\%, entonces -> No hay que aplicar desbalanceo, o sip, no ze zabe.
-  
   Aunque los datos están ya normalizados y escalados en [-1,1], estos presentan una gran asimetría como podemos observar:
   
 ```{r, echo=F,warning=F}
@@ -126,46 +130,94 @@ Así, el cálculo del error para cada modelo propuesto consistirá en el número
   hist(har.train$V389, col = "blue")
 ```  
 
+  Aunque los datos presentan una gran asimetría, no los quitamos porque "rompen el esquema".
   
-  Esta asimetría deberá ser tratada con el método BoxCox.
+  Además, la base de datos presenta un número demasiado alto de atributos, lo cual puede ser un gran problema a la hora utilizar métodos costosos para la predicción de las etiquetas. Con el objetivo de reducir el número de atributos sin perder información relevante, vamos a probar con dos métodos:
   
-  Además, la base de datos presenta un número demasiado alto de atributos, lo cual puede ser un gran problema a la hora utilizar métodos costosos para la predicción de las etiquetas. Por ello, aplicaremos PCA a los datos con el objetivo de encontrar dependencias entre las variables y simplificar el conjunto de datos reduciendo los tiempos de cómputo.
+##Analisis de componentes principales (PCA)
   
-  Para realizar estas dos operaciones de procesamiento, utilizaremos la función *preProcess* pasándole como argumento *method = c(BoxCox, pca)*. Como ya habíamos comentado anteriormente, aunque los datos estaban previamente centrados y escalados, al aplicar estos dos métodos de preprocesado se ha perdido esta propiedad, por tanto, aplicaremos también centrado y escalado a los datos. Luego, la llamada al método quedaría de la siguiente forma:
-
-<!--  
-#0.95 -> 102 componentes
-#0.9 -> 63 componentes
-#0.85 -> 40 componentes
-#0.8 -> 26 componentes
-#0.75 -> 16 componentes
-#0.7 -> 10 componentes
+  En primer lugar, probaremos a aplicar PCA a los datos con el objetivo de encontrar dependencias entre las variables y simplificar el conjunto de datos reduciendo los tiempos de cómputo. Los nuevos atributos considerados tras aplicar este método son combinaciones lineales de los atributos originales que recogen un tanto por ciento de la varianza acumulada de los datos pasado como argumento (*thresh*). Para la aplicación vamos a considerar *thresh = 0.95* ...
+  
+  Utilizaremos la función *preProcess* pasándole como argumento *method = c(pca)*.
 
 
-??? <- CON CUANTOS NOS QUEDAMOS AL FINAL?
-
--->  
 ```{r, echo=T, warning=F}
-
-ObjetoTrans <- preProcess(har.train,method = c("pca", "BoxCox", "center", "scale"), thres = 0.8)
+ObjetoTrans <- preProcess(har.train,method = c("pca"), thresh = 0.95)
 ```
 
 ```{r, echo=T, warning=F}
+  print(ObjetoTrans)
+```
 
+Para mantener el 95\% de la varianza se necesitan mantener 102 atributos.
+
+##Regresión LASSO (least absolute shrinkage and selection operator).
+
+  Lasso es un método que lleva a cabo la regularización a la misma vez que realiza selección de características. 
+
+El objetivo se basa en reducir el error de predicción, para ello, se ocupa de reducir la función:
+
+\[
+  R(\beta) = \sum_{i=1}^{n}(y_i - x_i\omega)^2 + \lambda \sum_{i=1}^{p}|\omega_i|
+\]
+
+donde $n$ es el número de muestras, $p$ el número de atributos y $w$ el vector de pesos solución. Así, obtiene diferentes valores de $\lambda$. Entre estos valores devueltos, podemos considerar dos de ellos:
+
+- *lambda.min*, que nos devuelve el valor del $\lambda$ para el que se minimiza el error obtenido.
+- *lambda.1se*. Aunque el $\lambda$ anterior sea menor, presenta una mayor dependencia de las particiones seleccionadas en la validación cruzada. La regla `1se` (one standard error), elige un valor de $\lambda$ para lo suficiente cercano a `lambda.min` para el cual el modelo obtenido sea lo suficiente simple, reduciendo así la dependencia del error respecto a las validaciones.
+
+Podemos contemplar cualquiera de estos valores de $\lambda$ para regularizar nuestro modelo. 
+
+Para obtener el modelo LASSO, realizaremos validación cruzada con tres particiones (dada la elevada dimensión de la base de datos). Tras obtener el modelo, considerando cada uno de los valores de *lambda* anteriormente comentado, obtenemos seis vectores de coeficientes donde cada uno de las componentes de estos vectores representa la relevancia de cada atributo para cada clase. Así, los atributos de los cuales podremos prescindir serán aquellos en los que la componente correspondiente a dicho atributo en todos los vectores sea nula. Realizando estas simplificaciones obtenemos que tras simplificar atributos las dimensiones obtenidas son:
+
+```{r, echo=T, warning=F}
+    ml_lasso <- cv.glmnet(as.matrix(har.train), lhar.train[,1], family="multinomial", nfolds = 3)
+    lambda.min <- ml_lasso$lambda.min
+    lambda.1se <- ml_lasso$lambda.1se
+    
+    coeffs.min <- coef(ml_lasso, s = ml_lasso$lambda.min)
+    coeffs.1se <- coef(ml_lasso, s = ml_lasso$lambda.1se)
+    
+    print(coeffs.min)
+    print(coeffs.1se)
+    
+    #Eliminamos los atributos del train  
+
+    coefficients.min <- matrix(ncol = 6, nrow = 562)
+    coefficients.1se <- matrix(ncol = 6, nrow = 562)
+    for(i in 1:6){
+      coefficients.min[,i] <- (coeffs.min[[i]])[1:nrow(coeffs.min[[i]]),]
+      coefficients.1se[,i] <- (coeffs.1se[[i]])[1:nrow(coeffs.1se[[i]]),]
+    }
+```
+ 
+ 
+   
+```{r, echo=T, warning=F}
+    
+    har.train_lasso.min = har.train[,abs(coefficients.min[1:6,])>0]
+    har.train_lasso.1se = har.train[,abs(coefficients.1se[1:6,])>0]
+    
+    print("El número de atributos tras aplicar la reducción con lambda.min es: ")
+    print(dim(har.train_lasso.min)[2])
+    
+    print("El número de atributos tras aplicar la reducción con lambda.1se es: ")
+    print(dim(har.train_lasso.1se)[2])
+
+```
+
+Por tanto, aunque sería preferible aplicar una reducción de atributos basada en la regresión LASSO dado que los atributos obtenidos se corresponden con los atributos originales del modelo, obtenemos que tras comparar las tres reducciones de dimensionalidad la que mayor reducción produce es la aplicación de *PCA*. En conclusión, a partir de ahora trabajaremos con el conjunto de datos resultante de aplicar la reducción con *PCA*.
+
+
+```{r, echo=T, warning=F}
 har.trans.train <- predict(ObjetoTrans, har.train)
 har.trans.test <- predict(ObjetoTrans, har.test)
 
 har.train <- har.trans.train  
 har.test <- har.trans.test
-
 ```
 
-
 #Modelo lineal.
-
-
-
-
 
 ## Selección de clases de funciones a usar
 
@@ -640,25 +692,24 @@ Transformación de etiquetas para `nnet`. Para evitar tratar con datos categóri
 lhar.train.multi01 <- class.ind(lhar.train[,1])
 har.data.nnet <- cbind(har.train,lhar.train.multi01)
 
-names(har.data.nnet) <- c("V1","V2","V3","V4","V5","V6","V7","V8","V9","V10","l1","l2","l3","l4","l5","l6")
-n <- names(har.data.nnet)[1:10]
+names(har.data.nnet) <- c(names(har.data.nnet)[1:102], "l1", "l2", "l3", "l4", "l5", "l6")
+n <- names(har.data.nnet)[1:102]
 
 # Obtenemos la fórmula:
-f.nnet <- as.formula(paste("l1 + l2 + l3 + l4 + l5 + l6 ~",paste(n[!n %in% c("l1","l2","l3")], collapse = " + ")))
+f.nnet <- as.formula(paste("l1 + l2 + l3 + l4 + l5 + l6 ~",paste(n[!n %in% c("l1","l2","l3","l4","l5","l6")], collapse = " + ")))
 
 ```
 
 ```{r, echo=F,warning=F}
   #tuneNNet(har.train, lhar.train)
-
-tune_nnet <- tune(nnet,train.x = f.nnet, data = lhar.data.nnet, ranges = list(size = 1:50),tunecontrol = tc)
+tune_nnet <- tune(nnet,train.x = f.nnet, data = har.data.nnet, ranges = list(size = 1:5),tunecontrol = tc)
 ```
 
 Predecimos el error sobre la muestra test para el mejor modelo obtenido en la validación cruzada.
 
 ```{r, echo=F,warning=F}
 
-nnet_model <- nnet(formula = f.nnet, data = lhar.data.nnet, size = 1)
+nnet_model <- nnet(formula = f.nnet, data = har.data.nnet, size = 1)
 summary(nnet_model)
 
 
@@ -802,7 +853,8 @@ confussion.svm <- table(svm.pred,lhar.test[,1])
 
 
 ```{r, echo=T, warning=F}
-maboost_model <- maboost(x = har.train, y = as.factor(lhar.train[,1]))  
+#sparsefactor -> true para aplicar regularización explicita norma L1 (?)
+maboost_model <- maboost(x = har.train, y = as.factor(lhar.train[,1]), sparsefactor = TRUE)  
 
 maboost.pred <- predict(maboost_model,har.test)
 Eout.maboost <- sum(maboost.pred != lhar.test[,1])/length(maboost.pred)
