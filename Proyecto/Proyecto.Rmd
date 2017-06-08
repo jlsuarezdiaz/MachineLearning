@@ -236,10 +236,9 @@ Los modelos que vamos a intentar ajustar son los proporcionados por la función 
 - **Quasibinomial.** Distribución binomial, con la única diferencia de que no fija el parámetro de dispersión (intenta describir varianza adicional en los datos que no puede ser explicada mediant una distribución binomial).
 - **Quasipoisson.** Distribución de Poisson, con la única diferencia de que no fija el parámetro de dispersion.
 
-
-
 ```{r, echo=F,warning=F}
 calculateEtest <- function(ml, test, ltest, s=0){
+
   #Cálculo de probabilidades
   if(s==0){
     ml.prob_test = predict(ml, test, type="response")
@@ -254,7 +253,7 @@ calculateEtest <- function(ml, test, ltest, s=0){
 
   ml.Etest = mean(ml.pred_test != ltest)
   
-  return(list(ml.Etest, ml.prob_test))
+  return(list(ml.Etest, ml.prob_test,ml.pred_test))
 }
 
 calculateEin <- function(ml ,ltrain){
@@ -265,7 +264,7 @@ calculateEin <- function(ml ,ltrain){
     
   ml.Ein = mean(ml.pred_train != ltrain)
 
-  return(list(ml.Ein, ml.prob_train))
+  return(list(ml.Ein, ml.prob_train,ml.pred_train))
 }
 
 testFamilies <- function(models, test, ltrain, ltest, modelNames = NULL){
@@ -284,6 +283,8 @@ testFamilies <- function(models, test, ltrain, ltest, modelNames = NULL){
   return(results)
 }
 ```
+
+
 
 ```{r, echo=F,warning=F}
   balance <- function(train, test, ltrain, ltest){
@@ -315,344 +316,91 @@ testFamilies <- function(models, test, ltrain, ltest, modelNames = NULL){
   }
 ```
 
+
 ```{r, echo=F,warning=F}
-predictions <- function(train, test, ltrain, ltest, modelNames = NULL){
+predictions1vs1 <- function(train, test, ltrain, ltest, modelNames = NULL){
   
-  M <- matrix(nrow = 9, ncol = length(ltest))
+  preds_ij <- matrix(nrow = 15, ncol = length(ltest))
   
-  preds_j <- matrix(nrow = 6, ncol = length(ltest))
-  for(i in 1:6){
-      #cat("Comparación ",i," vs  NO ",i,":\n")
-       ltrain_i <- ltrain
-       ltest_i <- ltest
+  k <- 0
+  
+  for(i in 2:6){
+    for(j in 1:(i-1)){
+      cat(i," vs ",j,":\n")
+      
+      inds_i <- which(ltrain == i)
+      inds_j <- which(ltrain == j)
+
+      ltrain_i <- ltrain[inds_i]
+      ltrain_j <- ltrain[inds_j]
+      
+      train_i <- train[inds_i,]
+      train_j <- train[inds_j,]
+      
+      #test_inds_i <- which(ltest == i)
+      #test_inds_j <- which(ltest == j)
+
+      #ltest_i <- ltest[test_inds_i]
+      #ltest_j <- ltest[test_inds_j]
+      #test_i <- test[test_inds_i,]
+      #test_j <- test[test_inds_j,]
+
+      
+      train_ij <- rbind(train_i,train_j)
+      #test_ij <- rbind(test_i,test_j)
+      ltrain_ij <- c(ltrain_i,ltrain_j)
+      #ltest_ij <- c(ltest_i,ltest_j)
+      
+      
+      
+      ltrain_ij[ltrain_ij==j] <- 0
+      ltrain_ij[ltrain_ij==i] <- 1
+      #ltest_ij[ltest_ij==j] <- 0
+      #ltest_ij[ltest_ij==i] <- 1
+
+      
+  
+       ml.logit <- glm(ltrain_ij ~ ., family = binomial(logit), data = train_ij)
+
+       predictions <- calculateEtest(ml.logit,test,ltest)[[3]]
+       predictions[predictions==1] <- i
+       predictions[predictions==0] <- j
+      
+       k <- k+1
        
-       ltrain_i[ltrain != i] <- 0
-       ltrain_i[ltrain == i] <- 1
-       ltest_i[ltest != i] <- 0
-       ltest_i[ltest == i] <- 1
-       
-       
-       
-       ml.binomial1 <- glm(ltrain_i ~ ., family = binomial(logit), data = train)
-       
-       preds_j[i,] <- calculateEtest(ml.binomial1,test,ltest)[[2]]
+       preds_ij[k,] <- predictions
+    }
        
   }
   
+  preds <- vector(length = length(ltest))
   for(i in 1:length(ltest)){
-      M[1,i] <- which(preds_j[,i]==max(preds_j[,i]))[1]
+      preds[i] <- names(sort(table(preds_ij[,i]),decreasing=T))[1]#preds_ij[which(preds_ij[,i] == max(preds_ij[,i]))[1],i]
   }
-  
-  
-  
-  preds_j <- matrix(nrow = 6, ncol = length(ltest))
-  for(i in 1:6){
-      #cat("Comparación ",i," vs  NO ",i,":\n")
-       ltrain_i <- ltrain
-       ltest_i <- ltest
-       
-       ltrain_i[ltrain != i] <- 0
-       ltrain_i[ltrain == i] <- 1
-       ltest_i[ltest != i] <- 0
-       ltest_i[ltest == i] <- 1
-       
-       
-       
-       ml.binomial2 <- glm(ltrain_i ~ ., family = binomial(probit), data = train)
-       
-       preds_j[i,] <- calculateEtest(ml.binomial2,test,ltest)[[2]]
-       
-  }
-  
-  for(i in 1:length(ltest)){
-      M[2,i] <- which(preds_j[,i]==max(preds_j[,i]))[1]
-  }
-  
-  
-  preds_j <- matrix(nrow = 6, ncol = length(ltest))
-  for(i in 1:6){
-      #cat("Comparación ",i," vs  NO ",i,":\n")
-       ltrain_i <- ltrain
-       ltest_i <- ltest
-       
-       ltrain_i[ltrain != i] <- 0
-       ltrain_i[ltrain == i] <- 1
-       ltest_i[ltest != i] <- 0
-       ltest_i[ltest == i] <- 1
-       
-       
-       
-       ml.binomial3 <- glm(ltrain_i ~ ., family = binomial(cauchit), data = train)
-       
-       preds_j[i,] <- calculateEtest(ml.binomial3,test,ltest)[[2]]
-       
-  }
-  
-  for(i in 1:length(ltest)){
-      M[3,i] <- which(preds_j[,i]==max(preds_j[,i]))[1]
-  }
-  
-  
-  preds_j <- matrix(nrow = 6, ncol = length(ltest))
-  for(i in 1:6){
-      #cat("Comparación ",i," vs  NO ",i,":\n")
-       ltrain_i <- ltrain
-       ltest_i <- ltest
-       
-       ltrain_i[ltrain != i] <- 0
-       ltrain_i[ltrain == i] <- 1
-       ltest_i[ltest != i] <- 0
-       ltest_i[ltest == i] <- 1
-       
-       
-       
-       ml.gaussian1 <- glm(ltrain_i ~ ., family = gaussian(identity), data = train)
-       
-       preds_j[i,] <- calculateEtest(ml.gaussian1,test,ltest)[[2]]
-       
-  }
-  
-  for(i in 1:length(ltest)){
-      M[4,i] <- which(preds_j[,i]==max(preds_j[,i]))[1]
-  }
-  
-  
-  
-  preds_j <- matrix(nrow = 6, ncol = length(ltest))
-  for(i in 1:6){
-      #cat("Comparación ",i," vs  NO ",i,":\n")
-       ltrain_i <- ltrain
-       ltest_i <- ltest
-       
-       ltrain_i[ltrain != i] <- 0
-       ltrain_i[ltrain == i] <- 1
-       ltest_i[ltest != i] <- 0
-       ltest_i[ltest == i] <- 1
-       
-       
-       
-       ml.gaussian2 <- glm(ltrain_i ~ ., family = gaussian(log), data = train, start=rep(0, ncol(train)+1))
-       
-       preds_j[i,] <- calculateEtest(ml.gaussian2,test,ltest)[[2]]
-       
-  }
-  
-  for(i in 1:length(ltest)){
-      M[5,i] <- which(preds_j[,i]==max(preds_j[,i]))[1]
-  }
-  
-  
-  
-  
-  preds_j <- matrix(nrow = 6, ncol = length(ltest))
-  for(i in 1:6){
-      #cat("Comparación ",i," vs  NO ",i,":\n")
-       ltrain_i <- ltrain
-       ltest_i <- ltest
-       
-       ltrain_i[ltrain != i] <- 0
-       ltrain_i[ltrain == i] <- 1
-       ltest_i[ltest != i] <- 0
-       ltest_i[ltest == i] <- 1
-       
-       
-       
-       ml.poisson1 <- glm(ltrain_i ~ ., family = poisson(log), data = train)
-       
-       preds_j[i,] <- calculateEtest(ml.poisson1,test,ltest)[[2]]
-       
-  }
-  
-  for(i in 1:length(ltest)){
-      M[6,i] <- which(preds_j[,i]==max(preds_j[,i]))[1]
-  }
-  
-  
-  
-  
-  preds_j <- matrix(nrow = 6, ncol = length(ltest))
-  for(i in 1:6){
-      #cat("Comparación ",i," vs  NO ",i,":\n")
-       ltrain_i <- ltrain
-       ltest_i <- ltest
-       
-       ltrain_i[ltrain != i] <- 0
-       ltrain_i[ltrain == i] <- 1
-       ltest_i[ltest != i] <- 0
-       ltest_i[ltest == i] <- 1
-       
-       
-       
-       ml.quasi1 <- glm(ltrain_i ~ ., family = quasi(link = "identity", variance = "constant"), data = train)
-       
-       preds_j[i,] <- calculateEtest(ml.quasi1,test,ltest)[[2]]
-       
-  }
-  
-  for(i in 1:length(ltest)){
-      M[7,i] <- which(preds_j[,i]==max(preds_j[,i]))[1]
-  }
-  
-  
-  
-  
-  
-  preds_j <- matrix(nrow = 6, ncol = length(ltest))
-  for(i in 1:6){
-      #cat("Comparación ",i," vs  NO ",i,":\n")
-       ltrain_i <- ltrain
-       ltest_i <- ltest
-       
-       ltrain_i[ltrain != i] <- 0
-       ltrain_i[ltrain == i] <- 1
-       ltest_i[ltest != i] <- 0
-       ltest_i[ltest == i] <- 1
-       
-       
-       
-        ml.quasibinomial1 <- glm(ltrain_i ~ ., family = quasibinomial(link = "logit"), data = train)
-       
-       preds_j[i,] <- calculateEtest(ml.quasibinomial1,test,ltest)[[2]]
-       
-  }
-  
-  for(i in 1:length(ltest)){
-      M[8,i] <- which(preds_j[,i]==max(preds_j[,i]))[1]
-  }
-  
-  
-  
-  
-  
-  preds_j <- matrix(nrow = 6, ncol = length(ltest))
-  for(i in 1:6){
-      #cat("Comparación ",i," vs  NO ",i,":\n")
-       ltrain_i <- ltrain
-       ltest_i <- ltest
-       
-       ltrain_i[ltrain != i] <- 0
-       ltrain_i[ltrain == i] <- 1
-       ltest_i[ltest != i] <- 0
-       ltest_i[ltest == i] <- 1
-       
-       
-       
-       ml.quasipoisson1 <- glm(ltrain_i ~ ., family = quasipoisson(link = "log"), data = train) 
-       
-       preds_j[i,] <- calculateEtest(ml.quasipoisson1,test,ltest)[[2]]
-       
-  }
-  
-  for(i in 1:length(ltest)){
-      M[9,i] <- which(preds_j[,i]==max(preds_j[,i]))[1]
-  }
-  
-  
-  
-  
-  
-  
-  
-  
-  
- 
-    modelNames <- c("Binomial - Logit", "Binomial - Probit", "Binomial - Cauchit", "Gaussian - Identity", "Gaussian - Log", "Poisson", "Quasi", "Quasibinomial","Quasipoisson")
-  rownames(M) <- modelNames
-  
-  errorVec <- vector(length = 9)
-  for(i in 1:9){
-      errorVec[i] <- sum(M[i,]!=ltest)/length(ltest)
-  }
-  names(errorVec) <- modelNames
+
+  errorVec <- sum(preds != ltest)/length(ltest)
     
-  return(list(M,errorVec))  
+  return(list(preds,errorVec))  
 }
 
 ```
 
 ```{r, echo=F,warning=F}
-P <- predictions(har.train,har.test,lhar.train[,1],lhar.test[,1])
+P <- predictions1vs1(har.train,har.test,as.vector(lhar.train[,1]),as.vector(lhar.test[,1]))
 
-# Matriz de confusión para Poisson (que proporciona el menor error)
-Eout.linear <- P[[2]][6]
-confussion.linear <- table(P[[1]][6,],lhar.test[,1])
+# Matriz de confusión
+Eout.linear <- P[[2]]
+confussion.linear <- table(P[[1]],lhar.test[,1])
 
-
-```
-
-```{r, echo=F,warning=F}
-validateLinearModels <- function(train,test,ltrain,ltest){
-  count_1 = sum(ltrain==1)
-  count_0 = sum(ltrain==0)
-  count = count_1 + count_0
-  
-  if(count_1/count <= 0.1 || count_0/count <= 0.1){
-      l <- balance(train, test, ltrain, ltest)
-      train <- l[[1]]
-      test <- l[[2]]
-      ltrain <- l[[3]]
-      ltest <- l[[4]]
-  }
-  
-  #Modelos
-  #binomial
-  ml.binomial1 <- glm(ltrain ~ ., family = binomial(logit), data = train)
-  ml.binomial2 <- glm(ltrain ~ ., family = binomial(probit), data = train)
-  ml.binomial3 <- glm(ltrain ~ ., family = binomial(cauchit), data = train)
-  #gaussiano
-  ml.gaussian1 <- glm(ltrain ~ ., family = gaussian(identity), data = train)
-  ml.gaussian2 <- glm(ltrain ~ ., family = gaussian(log), data = train, start=rep(0, ncol(train)+1))
-  #poisson
-  ml.poisson1 <- glm(ltrain ~ ., family = poisson(log), data = train)
-  
-  #quasi
-  ml.quasi1 <- glm(ltrain ~ ., family = quasi(link = "identity", variance = "constant"), data = train)
-
-  #quasibinomial
-  ml.quasibinomial1 <- glm(ltrain ~ ., family = quasibinomial(link = "logit"), data = train)
-  #quasipoisson
-  ml.quasipoisson1 <- glm(ltrain ~ ., family = quasipoisson(link = "log"), data = train)  
-  models <- list(ml.binomial1, ml.binomial2, ml.binomial3, ml.gaussian1, ml.gaussian2, ml.poisson1, ml.quasi1, ml.quasibinomial1, ml.quasipoisson1)
-    #modelNames <- c("Gaussian","Poisson")
-    modelNames <- c("Binomial - Logit", "Binomial - Probit", "Binomial - Cauchit", "Gaussian - Identity", "Gaussian - Log", "Poisson", "Quasi", "Quasibinomial","Quasipoisson")
-  testFamilies(models, test, ltrain, ltest, modelNames)
-  
-}
+Eout.linear
+confussion.linear
 
 
 ```
 
 
-Una vez definidos los modelos y las funciones a usar, procedemos al ajuste de los distintos modelos y al análisis de sus errores:
 
-```{r, echo=F,warning=F}
-validateLinearAllLabels <- function(train,test,ltrain,ltest){
-    output <- matrix(nrow = 9, ncol = 12)
-    rownames(output) <- c("Binomial - Logit", "Binomial - Probit", "Binomial - Cauchit", "Gaussian - Identity", "Gaussian - Log", "Poisson", "Quasi", "Quasibinomial","Quasipoisson")
-    colnames(output) <- c("Ein 1", "Eout 1","Ein 2", "Eout 2","Ein 3", "Eout 3","Ein 4", "Eout 4","Ein 5", "Eout 5","Ein 6", "Eout 6")
-    for( i in 1:6){
-       #cat("Comparación ",i," vs  NO ",i,":\n")
-       ltrain_i <- ltrain
-       ltest_i <- ltest
-       
-       ltrain_i[ltrain != i] <- 0
-       ltrain_i[ltrain == i] <- 1
-       ltest_i[ltest != i] <- 0
-       ltest_i[ltest == i] <- 1
-       
-       M <- validateLinearModels(train,test,ltrain_i,ltest_i)
-       
-       output[,c(2*i-1,2*i)] <- M[,c(1,2)]
-    } 
-    output
-}
-  
-```
 
-```{r, echo=F,warning=F}
-validateLinearAllLabels(har.train,har.test,as.vector(lhar.train[,1]),as.vector(lhar.test[,1]))
-
-```
 
 #Redes Neuronales
 
@@ -720,7 +468,10 @@ Si imprimimos el error producido para cada valor optenemos:
 
 #Máquina de Vectores Soporte
 
-- Los datos están normalizados.
+Las máquinas de vectores soporte son una de las técnicas más utilizadas para aprender distintos conjuntos de datos, por su simplicidad, su capacidad de maximizar márgenes y su facilidad para actuar en clasificaciones no lineales usando funciones kernel. Suelen proporcionar mejores resultados cuando los datos se reparten de forma homogénea y con poco ruido, permitiendo así controlar los márgenes de separación a partir de un conjunto pequeño de datos, los vectores soporte. Si el conjunto de datos es más heterogéneo, el ajuste será más complicado, puesto que la cantidad de vectores soporte puede aumentar, y serán más los vectores a adaptar. 
+
+En nuestro caso, ya intuíamos previamente que los datos de las clases 1,2 y 3 pueden ser a priori fácilmente distinguibles de los de las clases 4,5 y 6, mientras que dentro de cada grupo de clases la separabilidad de los datos puede ser más complicada. Los vectores soporte es posible que se concentren en torno a los márgenes internos a cada grupo de clases. Según la capacidad de separación que tengan para los datos medidos los resultados para SVM serán mejores o no.
+
 
 ```{r, echo=F,warning=F}
 
@@ -798,6 +549,10 @@ confussion.maboost <- table(maboot.pred,lhar.test[,1])
 ```
 
 #RandomForest
+
+Random Forest es una técnica de aprendizaje basada e.n clasificadores simples utilizando bagging. Es  una técnica con una gran componente aleatoria, la cual permite obtener buenos resultados cuando trabajamos con datos más difusos o con más ruido. También puede ser bastante eficaz para clasificar problemas con múltiples etiquetas, aunque puede necesitar un gran número de ejemplos para que la aleatoriedad del algoritmo permita generalizar bien para la clasificación de nuevos datos.
+
+En nuestro caso, disponemos tanto de un problema con múltiples etiquetas como de bastantes ejemplos, por lo que puede funcionar bien. En cuanto a la presencia de ruido, los datos provienen de medidas en un SmartPhone, que según su calidad, dichas medidas pueden tener distinta precisión, así que no podemos descartar que haya algo de ruido en los datos, si bien con el avance de la tecnología los instrumentos de medida son cada vez más precisos. En cualquier caso, Random Forest es una técnica para la cual los resultados sobre nuestro conjunto de datos pueden ser buenos.
 
 A continuación nos planteamos definir un modelo con RandomForest. Utilizaremos la función `randomForest` proporcionada por R, de la que destacamos los siguientes parámetros:
 
