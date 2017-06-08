@@ -6,7 +6,11 @@ output: pdf_document
 toc: yes
 ---
 
-
+<!--
+  6- Por qué SVM tarda mucho -> Porque los datos están muy juntos -- lo de espradao y etar andando
+  7- boosting -> cuidad con el ruido -> regularizar
+  8- En neuronas: Tasa de aprendizaje, mini/max, funcion de error (gradiente estocastic o no)
+-->
 \clearpage
 
 ```{r, echo = FALSE, warnings = FALSE, results = FALSE, message = FALSE}
@@ -23,6 +27,8 @@ toc: yes
     library("nnet")
     library("randomForest")
     library("gbm")
+    library("adabag")
+    library("maboost")
 ```
 
 
@@ -55,10 +61,12 @@ En cuanto a las etiquetas, nos encontramos ante un problema de clasificación mu
   4. SITTING
   5. STANDING
   6. LAYING
+  
+Podemos observar fijándonos en lo que representa cada etiqueta que los tres primeros valores de las etiquetas hacen referencia a actividades muy similares, relacionadas con andar, mientras que las otras tres tienen la misma propiedad, representando estados de no movimiento. Podemos intuir por tanto, en vista a lo que representan las distintas clases, que los datos de las tres primeras clases serán fácilmente separables de los datos de las tres restantes, si las medidas que se han tomado son representativas del movimiento, mientras que a priori será más complicado distinguir dentro de cada grupo de clases, cuál será la asignación correcta.
 
-Por tanto, para la aplicación de aquellos métodos que precisen de clasificación binaria para un buen funcionamiento utilizaremos la técnica de *one vs all*, la cual consistirá en dividir nuestro problema de clasificación multiclase en seis problemas de clasificación binaria de la forma: clase_i VS no_clase_i. 
+Al tratarse de un problema de clasificación multiclase, para la aplicación de aquellos métodos que precisen de clasificación binaria para un buen funcionamiento utilizaremos la técnica de *One vs One*, la cual consistirá en dividir nuestro problema de clasificación multiclase en $\binom{6}{2} = 15$ problemas de clasificación binaria de la forma clase_i vs clase_j con $i,j \in [1,6]$,
 
-Así, el cálculo del error para cada modelo propuesto consistirá en el número de errores cometidos. Esto es, número de muestras con etiqueta asignada de forma errónea. Para aquellos modelos que precisen de una adaptación a subproblemas de clasificación binaria, obtendremos seis vectores con la probabilidad de asignación de cada una de las seis etiquetas disponibles. Por tanto, le asignaremos a cada elemento la etiqueta que obtenga una mayor probabilidad, calculando el error en este caso de la misma forma que para el resto de modelos.
+Así, el cálculo del error para cada modelo propuesto consistirá en el número de errores cometidos. Esto es, número de muestras con etiqueta asignada de forma errónea. Para aquellos modelos que precisen de una adaptación a subproblemas de clasificación binaria, obtendremos quince vectores con la probabilidad de asignación de cada una de las seis etiquetas disponibles. Por tanto, le asignaremos a cada elemento la etiqueta que obtenga una mayor probabilidad, calculando el error en este caso de la misma forma que para el resto de modelos.
 
 ## Preprocesado de datos.
 
@@ -104,10 +112,6 @@ Así, el cálculo del error para cada modelo propuesto consistirá en el número
   
   Podemos observar que no existe desbalance entre las seis clases contempladas, luego no podemos despreciar ninguna. 
   
-  PREGUNTAR AQUI CON CUANTAS DESBALANCEAMOS PORQUE:
-  
-  Ahora bien, a la hora de realizar los subproblemas *one vs all* nos encontraremos con un balanceo aproximado del 20\% - 80\% al 15\%-85\%, entonces -> No hay que aplicar desbalanceo, o sip, no ze zabe.
-  
   Aunque los datos están ya normalizados y escalados en [-1,1], estos presentan una gran asimetría como podemos observar:
   
 ```{r, echo=F,warning=F}
@@ -126,46 +130,97 @@ Así, el cálculo del error para cada modelo propuesto consistirá en el número
   hist(har.train$V389, col = "blue")
 ```  
 
+  Aunque los datos presentan una gran asimetría, no los quitamos porque "rompen el esquema".
   
-  Esta asimetría deberá ser tratada con el método BoxCox.
+  Además, la base de datos presenta un número demasiado alto de atributos, lo cual puede ser un gran problema a la hora utilizar métodos costosos para la predicción de las etiquetas. Con el objetivo de reducir el número de atributos sin perder información relevante, vamos a probar con dos métodos:
   
-  Además, la base de datos presenta un número demasiado alto de atributos, lo cual puede ser un gran problema a la hora utilizar métodos costosos para la predicción de las etiquetas. Por ello, aplicaremos PCA a los datos con el objetivo de encontrar dependencias entre las variables y simplificar el conjunto de datos reduciendo los tiempos de cómputo.
+##Analisis de componentes principales (PCA)
   
-  Para realizar estas dos operaciones de procesamiento, utilizaremos la función *preProcess* pasándole como argumento *method = c(BoxCox, pca)*. Como ya habíamos comentado anteriormente, aunque los datos estaban previamente centrados y escalados, al aplicar estos dos métodos de preprocesado se ha perdido esta propiedad, por tanto, aplicaremos también centrado y escalado a los datos. Luego, la llamada al método quedaría de la siguiente forma:
-
-<!--  
-#0.95 -> 102 componentes
-#0.9 -> 63 componentes
-#0.85 -> 40 componentes
-#0.8 -> 26 componentes
-#0.75 -> 16 componentes
-#0.7 -> 10 componentes
+  En primer lugar, probaremos a aplicar PCA a los datos con el objetivo de encontrar dependencias entre las variables y simplificar el conjunto de datos reduciendo los tiempos de cómputo. Los nuevos atributos considerados tras aplicar este método son combinaciones lineales de los atributos originales que recogen un tanto por ciento de la varianza acumulada de los datos pasado como argumento (*thresh*). Para la aplicación vamos a considerar *thresh = 0.95* ...
+  
+  Utilizaremos la función *preProcess* pasándole como argumento *method = c(pca)*.
 
 
-??? <- CON CUANTOS NOS QUEDAMOS AL FINAL?
-
--->  
 ```{r, echo=T, warning=F}
-
-ObjetoTrans <- preProcess(har.train,method = c("pca", "BoxCox", "center", "scale"), thres = 0.8)
+set.seed(123456789)
+ObjetoTrans <- preProcess(har.train,method = c("pca"), thresh = 0.95)
 ```
 
 ```{r, echo=T, warning=F}
+  print(ObjetoTrans)
+```
 
+Para mantener el 95\% de la varianza se necesitan mantener 102 atributos.
+
+##Regresión LASSO (least absolute shrinkage and selection operator).
+
+  Lasso es un método que lleva a cabo la regularización a la misma vez que realiza selección de características. 
+
+El objetivo se basa en reducir el error de predicción, para ello, se ocupa de reducir la función:
+
+\[
+  R(\beta) = \sum_{i=1}^{n}(y_i - x_i\omega)^2 + \lambda \sum_{i=1}^{p}|\omega_i|
+\]
+
+donde $n$ es el número de muestras, $p$ el número de atributos y $w$ el vector de pesos solución. Así, obtiene diferentes valores de $\lambda$. Entre estos valores devueltos, podemos considerar dos de ellos:
+
+- *lambda.min*, que nos devuelve el valor del $\lambda$ para el que se minimiza el error obtenido.
+- *lambda.1se*. Aunque el $\lambda$ anterior sea menor, presenta una mayor dependencia de las particiones seleccionadas en la validación cruzada. La regla `1se` (one standard error), elige un valor de $\lambda$ para lo suficiente cercano a `lambda.min` para el cual el modelo obtenido sea lo suficiente simple, reduciendo así la dependencia del error respecto a las validaciones.
+
+Podemos contemplar cualquiera de estos valores de $\lambda$ para regularizar nuestro modelo. 
+
+Para obtener el modelo LASSO, realizaremos validación cruzada con tres particiones (dada la elevada dimensión de la base de datos). Tras obtener el modelo, considerando cada uno de los valores de *lambda* anteriormente comentado, obtenemos seis vectores de coeficientes donde cada uno de las componentes de estos vectores representa la relevancia de cada atributo para cada clase. Así, los atributos de los cuales podremos prescindir serán aquellos en los que la componente correspondiente a dicho atributo en todos los vectores sea nula. Realizando estas simplificaciones obtenemos que tras simplificar atributos las dimensiones obtenidas son:
+
+```{r, echo=T, warning=F}
+    set.seed(123456789)
+
+    ml_lasso <- cv.glmnet(as.matrix(har.train), lhar.train[,1], family="multinomial", nfolds = 3)
+    lambda.min <- ml_lasso$lambda.min
+    lambda.1se <- ml_lasso$lambda.1se
+    
+    coeffs.min <- coef(ml_lasso, s = ml_lasso$lambda.min)
+    coeffs.1se <- coef(ml_lasso, s = ml_lasso$lambda.1se)
+    
+    print(coeffs.min)
+    print(coeffs.1se)
+    
+    #Eliminamos los atributos del train  
+
+    coefficients.min <- matrix(ncol = 6, nrow = 562)
+    coefficients.1se <- matrix(ncol = 6, nrow = 562)
+    for(i in 1:6){
+      coefficients.min[,i] <- (coeffs.min[[i]])[1:nrow(coeffs.min[[i]]),]
+      coefficients.1se[,i] <- (coeffs.1se[[i]])[1:nrow(coeffs.1se[[i]]),]
+    }
+```
+ 
+ 
+   
+```{r, echo=T, warning=F}
+    
+    har.train_lasso.min = har.train[,abs(coefficients.min[1:6,])>0]
+    har.train_lasso.1se = har.train[,abs(coefficients.1se[1:6,])>0]
+    
+    print("El número de atributos tras aplicar la reducción con lambda.min es: ")
+    print(dim(har.train_lasso.min)[2])
+    
+    print("El número de atributos tras aplicar la reducción con lambda.1se es: ")
+    print(dim(har.train_lasso.1se)[2])
+
+```
+
+Por tanto, aunque sería preferible aplicar una reducción de atributos basada en la regresión LASSO dado que los atributos obtenidos se corresponden con los atributos originales del modelo, obtenemos que tras comparar las tres reducciones de dimensionalidad la que mayor reducción produce es la aplicación de *PCA*. En conclusión, a partir de ahora trabajaremos con el conjunto de datos resultante de aplicar la reducción con *PCA*.
+
+
+```{r, echo=T, warning=F}
 har.trans.train <- predict(ObjetoTrans, har.train)
 har.trans.test <- predict(ObjetoTrans, har.test)
 
 har.train <- har.trans.train  
 har.test <- har.trans.test
-
 ```
 
-
 #Modelo lineal.
-
-
-
-
 
 ## Selección de clases de funciones a usar
 
@@ -568,8 +623,6 @@ validateLinearModels <- function(train,test,ltrain,ltest){
 ```
 
 
-
-
 Una vez definidos los modelos y las funciones a usar, procedemos al ajuste de los distintos modelos y al análisis de sus errores:
 
 ```{r, echo=F,warning=F}
@@ -603,134 +656,67 @@ validateLinearAllLabels(har.train,har.test,as.vector(lhar.train[,1]),as.vector(l
 
 #Redes Neuronales
 
-En primer lugar aplicamos validación cruzada para optimizar:
-- size: número de unidades ocultas intermedias
-- decay: se usa para evitar el sobre ajuste
+Debido a las dimensiones de nuestra base de datos, formular una arquitectura de red neuronal con más de una capa o con muchas unidades en la capa oculta se hace inmanejable. Por ello, definimos nuestro modelo de red neuronal definido por una arquitectura con una única capa oculta y con un número fijo de unidades en la capa oculta igual a 5. Utilizaremos la función `neuralnet` proporcionada por R, de la que destacamos los siguientes parámetros:
 
-Como queremos usarlo para clasificación debemos usar el parámetro: lineout = T.
+- **hidden: ** Número de capas ocultas (hidden = 5).
+- **threshold: ** Criterio de parada. Umbral entre las derivadas parciales de la función de error en dos iteraciones consecutivas. Lo dejaremos por defecto, 0.1.
+- **stepmax: ** Número máximo de pasos. Estableceremos también este criterio de parada para evitar quedar atrapados en mínimos locales cuando usamos valores de tasa de aprendizaje muy bajas.
+- **rep: ** Número de repeticiones que realizamos del aprendizaje de los pesos a partir de los datos de train. Realizaremos tres repeticiones para cada valor de la tasa de aprendizaje.
+- **learningrate: ** Tasa de aprendizaje. Será el valor a estimar y tomará valores entre [0.8, 1.2]. Dependiendo de este valor, los saltos entre los pesos serán más o menos pronunciados. Se establecerá con un único valor en el intervalo dependiendo del ganador tras la estimación.
+- **lifesign: ** Para establecer lo que queremos que imprima la función durante el aprendizaje de la red neuronal. Lo utilizaremos con dos valores diferentes: 'minimal' para el cálculo de la tasa de aprendizaje óptima y 'full' cuando analicemos más profundamente.
+- **err.fct: ** Función de error usada para el cálculo del error. Usaremos la función por defecto, `sse`: suma de errores cuadráticos.
+- **linear.output: ** Lo pondremos a *FALSE* para que interprete el problema como un problema de clasificación.
 
-```{r, echo=F,warning=F}
-# Controlador de tune. Debido al tamaño de los datos, utlizaremos validación cruzada 5-fold para la estimación de hiperparámetros.
-tc <- tune.control(cross = 5)
-```
 
+Como ya hemos comentado, para establecer el modelo calcularemos la tasa de aprendizaje óptima para la arquitectura de una capa con cinco unidades en la capa:
 
-```{r, echo=F,warning=F}
-  #train.data <- cbind(har.train, lhar.train)
-```
-
-Lo hacemos hasta 25 porque peta. La función tune obtiene por validación cruzada el error para un tamaño de capa oculta prefijada.
 
 ```{r, echo=F,warning=F}
-  tuneNNet <- function(data, label){
-    #Probamos los parámetros con tune.nnet
-    for(i in 1:30){
-        s[i] <- (tune.nnet(x = data, y = label, size = i))
-    }
-    
-    s <- cbind(c(1:30), s)
-    s
-  }
-  
-```
+  lhar.train.multi01 <- class.ind(lhar.train[,1])
+  lhar.test.multi01 <- class.ind(lhar.test[,1])
+  har.data.nnet <- cbind(har.train,lhar.train.multi01)
 
-Transformación de etiquetas para `nnet`. Para evitar tratar con datos categóricos (etiquetas $1,\dots,6$), que no pueden ser tratados con `nnet`, creamos 6 columnas de etiquetas a 0 o 1.
-
-```{r, echo=F,warning=F}
-lhar.train.multi01 <- class.ind(lhar.train[,1])
-har.data.nnet <- cbind(har.train,lhar.train.multi01)
-
-names(har.data.nnet) <- c("V1","V2","V3","V4","V5","V6","V7","V8","V9","V10","l1","l2","l3","l4","l5","l6")
-n <- names(har.data.nnet)[1:10]
+  names(har.data.nnet) <- c(names(har.data.nnet)[1:102], "l1", "l2", "l3", "l4", "l5", "l6")
+  n <- names(har.data.nnet)[1:102]
 
 # Obtenemos la fórmula:
-f.nnet <- as.formula(paste("l1 + l2 + l3 + l4 + l5 + l6 ~",paste(n[!n %in% c("l1","l2","l3")], collapse = " + ")))
-
-```
-
-```{r, echo=F,warning=F}
-  #tuneNNet(har.train, lhar.train)
-
-tune_nnet <- tune(nnet,train.x = f.nnet, data = lhar.data.nnet, ranges = list(size = 1:50),tunecontrol = tc)
-```
-
-Predecimos el error sobre la muestra test para el mejor modelo obtenido en la validación cruzada.
-
-```{r, echo=F,warning=F}
-
-nnet_model <- nnet(formula = f.nnet, data = lhar.data.nnet, size = 1)
-summary(nnet_model)
+  f.nnet <- as.formula(paste("l1 + l2 + l3 + l4 + l5 + l6 ~",paste(n[!n %in% c("l1","l2","l3","l4","l5","l6")], collapse = " + ")))
 
 
-```
-
-```{r, echo=F,warning=F}
-
-har.test.nnet <- har.test
-names(har.test.nnet) <- c("V1","V2","V3","V4","V5","V6","V7","V8","V9","V10")
-#nnet.pred <- predict(nnet_model,har.test.nnet, type = "raw")
-# No sé por qué sale todo 1 aquí
-
-#compute(nnet_model,har.test.nnet)
-```
-
-El número de unidades óptimo para una sola capa oculta es: 19. 
-
-Probamos ahora entre las redes neuronales de:
-  - Una capa con 19 unidades
-  - Dos capas con 19 unidades cada una.
-  - Tres capas con 19 unidades cada una.
-  
-  Vamos a utilizar la validación cruzada de mhe
-  
-   = data.aux[((i-1)*nrow(data)/5 + 1):((i)*nrow(data)/5),]
-  
-```{r, echo=F,warning=F}
-
-  chooseNumberLayers <- function(data, label, size){
-    #data.aux<-cbind(data,label)
-    #linear.output -> True para clasificacion
-    #algorithm -> por defecto rprop+ (?)
-
-    per <- sample(nrow(data), nrow(data))
-    #Barajamos
-    data[per,]
-
-    #Calculamos error con una capa
-    m <- matrix(nrow = 3, ncol = 1)
-  
-    for(j in 1:3){
-       error <- 0
-       for(i in 1:5){
-          #Esto cogido de internet -> CUIDADO
-          train <- data[((i-1)*nrow(data)/5 + 1):((i)*nrow(data)/5),]
-          ltrain <- label[((i-1)*nrow(label)/5 + 1):((i)*nrow(label)/5),]
-          n <- names(train)
-          f <- as.formula(paste("ltrain ~", paste(n[!n %in% "ltrain"], collapse = " + ")))
-          m <- neuralnet(f, train , hidden = rep(size,j), linear.output = TRUE)
-          
-          #No estoy segura de como calcular el error 
-          ltest <- label[-(((i-1)*nrow(label)/5 + 1):((i)*nrow(label)/5)),]
-          test <- data[-(((i-1)*nrow(data)/5 + 1):((i)*nrow(data)/5)),]
-          pnn.m <- compute(m, data[-(((i-1)*nrow(data)/5 + 1):((i)*nrow(data)/5)),])  
-          pr.nn_ <- pnn.m$net.result*(max(ltrain)-min(ltrain))+min(ltrain)
-          test.r <- (ltest)*(max(ltrain)-min(ltrain))+min(ltrain)
-
-          error < error  + sum((test.r - pr.nn_)^2)/nrow(test)
-       }   
-       
-       m[j] <- error/5
-    }
-
+testingLearningRate <- function(formula, data,test, ltest){
+    rates <- seq(from = 0.8, to = 1.2, 0.1)
+    error <- vector()
+    original.label <- max.col(ltest[,1])
     
-  }
+    for(i in seq_along(rates)){
+      ann <- neuralnet(formula = formula, data = data, hidden = 5, lifesign = 'minimal', learningrate = rates[i], rep = 3, linear.output = FALSE, stepmax = 10000)
+      
+      pr.nn <- compute(ann, test)
+      pr.nn_ <- pr.nn$net.result
+      pr.nn_2 <- max.col(pr.nn_)
 
+      error[i] <- 1 - mean(pr.nn_2 == original.label)
+    }
+    
+    return(error)
+  }
+  
 ```
 
 
 ```{r, echo=F,warning=F}
-  chooseNumberLayers(har.train, lhar.train, 19)
+  set.seed(123456789)
+
+  err.tasa <- testingLearningRate(f.nnet, har.data.nnet, har.test, lhar.test.multi01)
 ```
+
+Si imprimimos el error producido para cada valor optenemos:
+
+
+
+```{r, echo=F,warning=F}
+```
+
 
 #Máquina de Vectores Soporte
 
@@ -802,7 +788,8 @@ confussion.svm <- table(svm.pred,lhar.test[,1])
 
 
 ```{r, echo=T, warning=F}
-maboost_model <- maboost(x = har.train, y = as.factor(lhar.train[,1]))  
+#sparsefactor -> true para aplicar regularización explicita norma L1 (?)
+maboost_model <- maboost(x = har.train, y = as.factor(lhar.train[,1]), sparsefactor = TRUE)  
 
 maboost.pred <- predict(maboost_model,har.test)
 Eout.maboost <- sum(maboost.pred != lhar.test[,1])/length(maboost.pred)
@@ -812,38 +799,69 @@ confussion.maboost <- table(maboot.pred,lhar.test[,1])
 
 #RandomForest
 
+A continuación nos planteamos definir un modelo con RandomForest. Utilizaremos la función `randomForest` proporcionada por R, de la que destacamos los siguientes parámetros:
 
+- **ntree: ** Número de árboles considerados. Para estimar este número, realizaremos validación cruzada haciendo uso de la función `tune` proporiconada por R. 
+- **mtry: ** Número de variables elegidas de forma aleatoria como candidatas para cada partición. Según los parámetros visto en teoría, para los problemas de clasificación el valor óptimo sería $sqrt(p)$ donde p sería el número de atributos considerados, por tanto, para nuestro problema *mtry = 10*. 
 
-Hay dos parámetros importantes para predecir:
-1- Número de árboles (ntree)
-2- Número de variables aleatorias usadas en cada árbol (mtry)
-
-Calculamos el número de variables aleatorias usadas en cada árbol óptimo:
+Para comprobar que se corresponde el valor óptimo con el valor establecido teóricamente, utilizamos la función `tuneRF` que nos devuelve el mejor valor de *mtry*. 
 
 ```{r, echo=F,warning=F}
     #La función tuneRF calcula a partir del valor por defecto de mtry el valor óptimo de mtry para el randomForest
     #Convertimos la etiqueta a un factor para que haga clasificación
     flhar.train <- as.factor(lhar.train[,1])
-    best.mtry <- tuneRF(har.train, flhar.train, stepFactor = 1, improve = 0.02, ntree = 500)
+    best.mtry <- tuneRF(har.train, flhar.train, stepFactor = 1, improve = 0.02, ntree = 50)
 ```
-
--> Es sqrt(9) que es el valor optimo en teoria.
-
-
-Calculamos el número de árboles óptimo:
 
 ```{r, echo=F,warning=F}
-   best.params <- tune(method = randomForest, har.train, flhar.train, ranges = list(ntree = c(10,20,30), mtry = 3), tunecontrol = tc)
+  print("El valor óptimo de mtry calculado es: ")
+  print(best.mtry[,1])
+```
+
+Luego, el valor óptimo calculado del *mtry* se corresponde con el valor óptimo teórico. De aqui en adelante, utilizamos *mtry* = 10.
+
+A continuación, experimentamos con el número de árboles óptimo para la definición de nuestro modelo de Random Forest final, consideraremos los valores de número árboles entre [100,1000]. Relizamos validación cruzada (5 folds) con la función tune y obtenemos lo siguiente:
+
+```{r, echo=F,warning=F}
+  set.seed(123456789)
+   best.params <- tune(method = randomForest, har.train, flhar.train, ranges = list(ntree = c(100,200,300,400,500, 600, 700, 800, 900, 1000), mtry = 10), tunecontrol = tc)
 
 ```
+
+El resultado de las pruebas realizadas ha sido:
+
+```{r, echo=F,warning=F}
+  print(best.params$performances)
+```
+```{r, echo=F,warning=F}
+  print(best.params)
+```
+
+
+Como podemos observar, el número óptimo de áboles obtenido ha sido 800, aunque el error no ha variado mucho. 
+
+Podemos observar el progreso del error en función del número de árboles utilizado en la siguiente gráfica:
+
+
+```{r, echo=F,warning=F}
+  points <- best.params$performances[c(1,3)]
+  plot(points, type = "l", col = "blue")
+```
+
+<!--
+Por regla general, cuanto mayor número de árboles se introduzcan al método, mejor será el error producido. Sin embargo, la mejora también decrece cuantos más árboles utilicemos. Por tanto, en cierto punto, el beneficio obtenido al aumentar el número de árboles será menor que el tiempo de cómputo necesitado para añadir estos árboles.
+--->
+
+
+Aunque podemos observar que las diferencias entre los errores obtenidos son pequeñas, como 800 árboles sigue siendo un número de árboles tratable en cuanto a tiempo de cómputo, elegimos este número como valor del parámetro *ntree*. Así, definimos nuestro modelo ganador de Random Forest con 800 árboles y *mtry = 10*.
 
 Evaluamos sobre los datos test el mejor modelo obtenido en la validación cruzada.
 
 ```{r, echo=F,warning=F}
+set.seed(123456789)
 
-rf_model <- randomForest(x = har.train, y = flhar.train, ntree = 30, mtry = 3)
+rf_model <- randomForest(x = har.train, y = flhar.train, ntree = 800, mtry = 10)
 summary(rf_model)
-
 
 ```
 
@@ -854,6 +872,8 @@ Eout.rf <- sum(rf.pred != lhar.test[,1])/length(rf.pred)
 confussion.rf <- table(rf.pred,lhar.test[,1])
   
 ```
+
+#Análisis de los resultados y conclusiones
 
 ```{r, echo=F,warning=F}
 
