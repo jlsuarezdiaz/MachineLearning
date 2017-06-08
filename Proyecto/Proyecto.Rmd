@@ -337,28 +337,15 @@ predictions1vs1 <- function(train, test, ltrain, ltest, modelNames = NULL){
       train_i <- train[inds_i,]
       train_j <- train[inds_j,]
       
-      #test_inds_i <- which(ltest == i)
-      #test_inds_j <- which(ltest == j)
-
-      #ltest_i <- ltest[test_inds_i]
-      #ltest_j <- ltest[test_inds_j]
-      #test_i <- test[test_inds_i,]
-      #test_j <- test[test_inds_j,]
-
       
       train_ij <- rbind(train_i,train_j)
-      #test_ij <- rbind(test_i,test_j)
       ltrain_ij <- c(ltrain_i,ltrain_j)
-      #ltest_ij <- c(ltest_i,ltest_j)
-      
+
       
       
       ltrain_ij[ltrain_ij==j] <- 0
       ltrain_ij[ltrain_ij==i] <- 1
-      #ltest_ij[ltest_ij==j] <- 0
-      #ltest_ij[ltest_ij==i] <- 1
 
-      
   
        ml.logit <- glm(ltrain_ij ~ ., family = binomial(logit), data = train_ij)
 
@@ -375,7 +362,7 @@ predictions1vs1 <- function(train, test, ltrain, ltest, modelNames = NULL){
   
   preds <- vector(length = length(ltest))
   for(i in 1:length(ltest)){
-      preds[i] <- names(sort(table(preds_ij[,i]),decreasing=T))[1]#preds_ij[which(preds_ij[,i] == max(preds_ij[,i]))[1],i]
+      preds[i] <- names(sort(table(preds_ij[,i]),decreasing=T))[1]
   }
 
   errorVec <- sum(preds != ltest)/length(ltest)
@@ -419,6 +406,71 @@ Debido a las dimensiones de nuestra base de datos, formular una arquitectura de 
 Como ya hemos comentado, para establecer el modelo calcularemos la tasa de aprendizaje óptima para la arquitectura de una capa con cinco unidades en la capa:
 
 
+{r, echo=F,warning=F}
+  lhar.train.multi01 <- class.ind(lhar.train[,1])
+  har.data.nnet <- cbind(har.train,lhar.train.multi01)
+
+  names(har.data.nnet) <- c(names(har.data.nnet)[1:102], "l1", "l2", "l3", "l4", "l5", "l6")
+  n <- names(har.data.nnet)[1:102]
+
+# Obtenemos la fórmula:
+  f.nnet <- as.formula(paste("l1 + l2 + l3 + l4 + l5 + l6 ~",paste(n[!n %in% c("l1","l2","l3","l4","l5","l6")], collapse = " + ")))
+
+
+testingLearningRate <- function(formula, data,ldata){
+    rep <- sample(nrow(data), 0.3*nrow(data))
+    train <- data[-rep,]
+    test <- data[rep,(1:102)]
+    ltest <- ldata[rep,]
+    rates <- seq(from = 0.8, to = 1.2, 0.1)
+    error <- vector()
+
+    for(i in seq_along(rates)){
+      ann <- neuralnet(formula = formula, data = train, hidden = 5, lifesign = 'minimal', learningrate = rates[i], rep = 3, linear.output = FALSE, act.fct = "logistic", stepmax = 10000)
+      
+      pr.nn <- compute(ann, test)
+      pr.nn_ <- pr.nn$net.result
+      pr.nn_2 <- max.col(pr.nn_)
+
+      error[i] <- 1 - mean(pr.nn_2 == ltest)
+    }
+    
+    return(error)
+}
+
+
+
+```{r, echo=F,warning=F}
+  set.seed(123456789)
+
+  err.tasa <- testingLearningRate(f.nnet, har.data.nnet,lhar.train)
+```
+  
+
+Los errores obtenidos en las diferentes pruebas han sido:
+
+```{r, echo=F,warning=F}
+  err.tasa.rate <- cbind(c(0.8,0.9,1,1.1,1.2),  err.tasa)
+  print(err.tasa.rate)
+```
+
+Luego, el mejor valor para la tasa de aprendizaje es $\eta = 1.1$. Definimos el modelo con esta tasa de aprendizaje.
+
+
+```{r, echo=F,warning=F}
+
+set.seed(996)
+
+ann <- neuralnet(formula = f.nnet, data = har.data.nnet, hidden = 5, lifesign = 'minimal', learningrate = 1.1, rep = 1, linear.output = FALSE, act.fct = "logistic", stepmax = 10000)
+
+pr.nn <- compute(ann, har.test)
+pr.nn_ <- pr.nn$net.result
+pr.nn_2 <- max.col(pr.nn_)
+Eout.nn <- 1 - mean(pr.nn_2 == lhar.test)
+confusion.nn <- table(pr.nn_2, lhar.test[,1])
+
+```
+
 ```{r, echo=F,warning=F}
   lhar.train.multi01 <- class.ind(lhar.train[,1])
   lhar.test.multi01 <- class.ind(lhar.test[,1])
@@ -456,6 +508,7 @@ testingLearningRate <- function(formula, data,test, ltest){
   set.seed(123456789)
 
   err.tasa <- testingLearningRate(f.nnet, har.data.nnet, har.test, lhar.test.multi01)
+  
 ```
 
 Si imprimimos el error producido para cada valor optenemos:
@@ -500,6 +553,82 @@ confussion.svm <- table(svm.pred,lhar.test[,1])
 
 
 #Boosting
+
+Boosting es una técnica de aprendizaje basada en clasificadores débiles que se combinan para producir buenos resultados. La técnica AdaBoost sigue la mecánica de Boosting de forma iterativa, adaptándo los nuevos clasificadores según los errores obtenidos.  Tiene una gran capacidad de ajuste, pero a la vez tiene una gran capacidad para maximizar márgenes, lo que le permite generalizar de forma bastante buena. Sin embargo, puede ser muy sensible al ruido en los datos, y la elección del clasificador simple influye mucho en su correcto funcionamiento.
+
+En nuestro caso, utilizaremos como clasificador funciones stump, o árboles de decisión de un nivel. A priori no conocemos la cantidad de ruido en los datos, aunque, como ya se ha comentado, es posible que haya algún ruido ligero consecuencia de errores de precisión en las medidas tomadas por los dispositivos. Si este ruido es lo suficientemente destacable, AdaBoost no producirá buenos resultados.
+
+Utilizamos dos funciones de R para obtener estos modelos de Boosting. Por un lado, utilizamos AdaBoost comparando las clases mediante la técnica 1 vs 1 ya realizada con los modelos lineales, y por otra parte, utilizaremos la librería de R maboost, que proporciona una versión generalizada de AdaBoost para problemas de clasificación con múltiples etiquetas.
+
+```{r, echo=F,warning=F}
+boostingPredictions1vs1 <- function(train, test, ltrain, ltest, modelNames = NULL){
+  
+  preds_ij <- matrix(nrow = 15, ncol = length(ltest))
+  
+  k <- 0
+  
+  for(i in 2:6){
+    for(j in 1:(i-1)){
+      cat(i," vs ",j,":\n")
+      
+      inds_i <- which(ltrain == i)
+      inds_j <- which(ltrain == j)
+
+      ltrain_i <- ltrain[inds_i]
+      ltrain_j <- ltrain[inds_j]
+      
+      train_i <- train[inds_i,]
+      train_j <- train[inds_j,]
+      
+      
+      train_ij <- rbind(train_i,train_j)
+      ltrain_ij <- c(ltrain_i,ltrain_j)
+
+      
+      
+      ltrain_ij[ltrain_ij==j] <- 0
+      ltrain_ij[ltrain_ij==i] <- 1
+
+       gbm.boost <- gbm(ltrain_ij ~ ., data = train_ij, distribution = "adaboost", n.trees = 5000)
+         
+         #glm(ltrain_ij ~ ., family = binomial(logit), data = train_ij)
+
+       predictions <- predict(gbm.boost,har.test,n.trees = 5000,type = "response" )
+       predictions[predictions>=0.5] <- i
+       predictions[predictions<0.5] <- j
+      
+       k <- k+1
+       
+       preds_ij[k,] <- predictions
+    }
+       
+  }
+  
+  preds <- vector(length = length(ltest))
+  for(i in 1:length(ltest)){
+      preds[i] <- names(sort(table(preds_ij[,i]),decreasing=T))[1]
+  }
+
+  errorVec <- sum(preds != ltest)/length(ltest)
+    
+  return(list(preds,errorVec))  
+}
+
+```
+
+```{r, echo=F,warning=F}
+B <- boostingPredictions1vs1(har.train,har.test,as.vector(lhar.train[,1]),as.vector(lhar.test[,1]))
+
+# Matriz de confusión
+Eout.adagbm <- B[[2]]
+confussion.adabgm <- table(B[[1]],lhar.test[,1])
+
+Eout.adabgm
+confussion.adabgm
+
+
+```
+
 
 ```{r, echo=F,warning=F}
 
