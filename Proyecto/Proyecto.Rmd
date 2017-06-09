@@ -6,14 +6,9 @@ output: pdf_document
 toc: yes
 ---
 
-<!--
-  6- Por qué SVM tarda mucho -> Porque los datos están muy juntos -- lo de espradao y etar andando
-  7- boosting -> cuidad con el ruido -> regularizar
-  8- En neuronas: Tasa de aprendizaje, mini/max, funcion de error (gradiente estocastic o no)
--->
 \clearpage
 
-```{r, echo = FALSE, warnings = FALSE, results = FALSE, message = FALSE}
+```{r, echo = FALSE, warnings = FALSE, results = 'hide', message = FALSE}
     #Fijamos la semilla para obtener siempre los mismos resultados
     set.seed(123456789)
 
@@ -31,15 +26,14 @@ toc: yes
     library("maboost")
 ```
 
-
-## Comprensión del problema a resolver: Human Activity Recognition Using Smartphones Data Set.
+# Comprensión del problema a resolver: Human Activity Recognition Using Smartphones Data Set.
 
 La base de datos elegida para el problema recoge la información de un grupo 30 voluntarios con edades comprendidas entre 18-48 años. Cada uno de estos individuos tenía que realizar una serie de actividades con el teléfono móvil enganchado en su cintura. Así, utilizando el dispositivo se podían registrar la aceleración lineal y angular en 3-ejes. Los experimentos se graban en vídeo para poder etiquetar los datos de forma manual. De entre los datos recogidos, se seleccionaron de forma aleatoria el 70\% de estos para hacer de conjunto de training mientras que el otro 30\% se seleccionaron para el test. 
 Así, la base de datos se compone de 7352 muestras en el conjunto de train y 2947 en el conjunto de test, formando un total de 10299 muestras recogidas de estos 30 voluntarios y se consideran un total de 561 atributos.
 
 Observamos el resumen de los diez primeros atributos:
 
-```{r, echo = FALSE, warning=FALSE, results= FALSE, message = FALSE}
+```{r, echo = FALSE, warning=FALSE, results= 'hide', message = FALSE}
   
     #LECTURA DE LOS DATOS
     har.train <- read.table("./UCIHARDataset/train/X_train.txt", sep="", head = F)
@@ -55,11 +49,17 @@ Observamos el resumen de los diez primeros atributos:
 ```
 
 En cuanto a las etiquetas, nos encontramos ante un problema de clasificación multiclase, dado que las etiquetas toman valores enteros en el intervalo [1,6]. Cada etiqueta clasifica el movimiento registrado por el dispositivo móvil y lo clasifica en seis tipos:
+
   1. WALKING
+ 
   2. WALKING_UPSTAIRS
+
   3. WALKING_DOWNSTAIRS
+
   4. SITTING
+
   5. STANDING
+
   6. LAYING
   
 Podemos observar fijándonos en lo que representa cada etiqueta que los tres primeros valores de las etiquetas hacen referencia a actividades muy similares, relacionadas con andar, mientras que las otras tres tienen la misma propiedad, representando estados de no movimiento. Podemos intuir por tanto, en vista a lo que representan las distintas clases, que los datos de las tres primeras clases serán fácilmente separables de los datos de las tres restantes, si las medidas que se han tomado son representativas del movimiento, mientras que a priori será más complicado distinguir dentro de cada grupo de clases, cuál será la asignación correcta.
@@ -68,7 +68,7 @@ Al tratarse de un problema de clasificación multiclase, para la aplicación de 
 
 Así, el cálculo del error para cada modelo propuesto consistirá en el número de errores cometidos. Esto es, número de muestras con etiqueta asignada de forma errónea. Para aquellos modelos que precisen de una adaptación a subproblemas de clasificación binaria, obtendremos quince vectores con las etiquetas predichas por cada modelo de 1vs1, y finalmente asignaremos como etiqueta final a cada dato el valor más votado entre los 15 vectores. A partir de aquí calcularemos el de la misma forma que para el resto de modelos.
 
-## Preprocesado de datos.
+# Preprocesado de datos.
 
   En primer lugar, observamos que nuestra base de datos no contiene valores perdidos (NaNs), por lo cual no será necesario el trato especial de estos valores. Lo mismo ocurre con las variables cualitativas.
   
@@ -141,7 +141,7 @@ Así, el cálculo del error para cada modelo propuesto consistirá en el número
   
 ##Analisis de componentes principales (PCA)
   
-  En primer lugar, probaremos a aplicar PCA a los datos con el objetivo de encontrar dependencias entre las variables y simplificar el conjunto de datos reduciendo los tiempos de cómputo. Los nuevos atributos considerados tras aplicar este método son combinaciones lineales de los atributos originales que recogen un tanto por ciento de la varianza acumulada de los datos pasado como argumento (*thresh*). Para la aplicación vamos a considerar *thresh = 0.95* ...
+  En primer lugar, probaremos a aplicar PCA a los datos con el objetivo de encontrar dependencias entre las variables y simplificar el conjunto de datos reduciendo los tiempos de cómputo. Los nuevos atributos considerados tras aplicar este método son combinaciones lineales de los atributos originales que recogen un tanto por ciento de la varianza acumulada de los datos pasado como argumento (*thresh*). Para la aplicación vamos a considerar *thresh = 0.95*, pues es ya una pérdida de varianza considerable y no queremos perder información útil.
   
   Utilizaremos la función *preProcess* pasándole como argumento *method = c("pca")*.
 
@@ -595,8 +595,10 @@ maboost.pred <- predict(maboost_model,har.test)
 
 print("Etest obtenido en maboost:")
 Eout.maboost <- sum(maboost.pred != lhar.test[,1])/length(maboost.pred)
+print(Eout.maboost)
 print("Matriz de confusión obtenida en maboost:")
 confussion.maboost <- table(maboost.pred,lhar.test[,1])
+print(confussion.maboost)
 
 ```
 
@@ -615,7 +617,8 @@ A continuación nos planteamos definir un modelo con RandomForest. Utilizaremos 
 
 Para comprobar que se corresponde el valor óptimo con el valor establecido teóricamente, utilizamos la función `tuneRF` que nos devuelve el mejor valor de *mtry*. 
 
-```{r, echo=F,warning=F,results=F}
+
+```{r, echo=F,warning=F,results='hide', message = F}
     #La función tuneRF calcula a partir del valor por defecto de mtry el valor óptimo de mtry para el randomForest
     #Convertimos la etiqueta a un factor para que haga clasificación
     flhar.train <- as.factor(lhar.train[,1])
@@ -647,29 +650,24 @@ A continuación, experimentamos con el número de árboles óptimo para la defin
 ```
 
 
-Como podemos ver, el número óptimo de áboles obtenido ha sido 800, aunque el error no ha variado mucho. 
+Como podemos ver, el número óptimo de áboles obtenido ha sido 500, aunque el error no ha variado mucho. 
 
 Podemos visualizar el progreso del error en función del número de árboles utilizado en la siguiente gráfica:
-
 
 ```{r, echo=F,warning=F}
   points <- best.params$performances[c(1,3)]
   plot(points, type = "l", col = "blue")
 ```
 
-<!--
-Por regla general, cuanto mayor número de árboles se introduzcan al método, mejor será el error producido. Sin embargo, la mejora también decrece cuantos más árboles utilicemos. Por tanto, en cierto punto, el beneficio obtenido al aumentar el número de árboles será menor que el tiempo de cómputo necesitado para añadir estos árboles.
---->
 
-
-Aunque podemos observar que las diferencias entre los errores obtenidos son pequeñas, como 800 árboles sigue siendo un número de árboles tratable en cuanto a tiempo de cómputo, elegimos este número como valor del parámetro *ntree*. Así, definimos nuestro modelo ganador de Random Forest con 800 árboles y *mtry = 10*.
+Aunque podemos observar que las diferencias entre los errores obtenidos son pequeñas, como 500 árboles sigue siendo un número de árboles tratable en cuanto a tiempo de cómputo, elegimos este número como valor del parámetro *ntree*. Así, definimos nuestro modelo ganador de Random Forest con 500 árboles y *mtry = 10*.
 
 Evaluamos sobre los datos test el mejor modelo obtenido en la validación cruzada.
 
 ```{r, echo=F,warning=F}
 set.seed(123456789)
 
-rf_model <- randomForest(x = har.train, y = flhar.train, ntree = 800, mtry = 10)
+rf_model <- randomForest(x = har.train, y = flhar.train, ntree = 500, mtry = 10)
 summary(rf_model)
 
 ```
@@ -713,7 +711,5 @@ Volviendo al tema del coste computacional, hemos obtenido también que el modelo
 Por útltimo, hay que recalcar la inferioridad en las tasas de clasificación obtenidas por los modelos de boosting en este problema, pues son con diferencia los métodos que peores resultados proporcionan, a la vez que traen consigo un tiempo de cómputo considerable. 
 
 En conclusión, a la hora de ajustar un modelo para estos datos, siempre que el tiempo de cómputo no sea un problema el modelo más adecuado es SVM, aunque si esto supone alguna complicación podemos conformarnos con el modelo lineal, cuyos resultados son igualmente aceptables.
-
-
 
 
