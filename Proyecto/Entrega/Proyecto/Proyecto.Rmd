@@ -1,0 +1,715 @@
+---
+title: "PROYECTO FINAL: AJUSTE DE MODELOS NO-LINEALES"
+author: "Nuria Rodríguez Barroso, Juan Luis Suárez Díaz."
+date: "`r format(Sys.time(), '%d de %B de %Y')`"
+output: pdf_document
+toc: yes
+---
+
+\clearpage
+
+```{r, echo = FALSE, warnings = FALSE, results = 'hide', message = FALSE}
+    #Fijamos la semilla para obtener siempre los mismos resultados
+    set.seed(123456789)
+
+    #Añadimos librerías necesarias.
+    library("caret")
+    library("e1071")
+    library("glmnet")
+    library("leaps")
+    library("DMwR")
+    library("neuralnet")
+    library("nnet")
+    library("randomForest")
+    library("gbm")
+    library("adabag")
+    library("maboost")
+```
+
+# Comprensión del problema a resolver: Human Activity Recognition Using Smartphones Data Set.
+
+La base de datos elegida para el problema recoge la información de un grupo 30 voluntarios con edades comprendidas entre 18-48 años. Cada uno de estos individuos tenía que realizar una serie de actividades con el teléfono móvil enganchado en su cintura. Así, utilizando el dispositivo se podían registrar la aceleración lineal y angular en 3-ejes. Los experimentos se graban en vídeo para poder etiquetar los datos de forma manual. De entre los datos recogidos, se seleccionaron de forma aleatoria el 70\% de estos para hacer de conjunto de training mientras que el otro 30\% se seleccionaron para el test. 
+Así, la base de datos se compone de 7352 muestras en el conjunto de train y 2947 en el conjunto de test, formando un total de 10299 muestras recogidas de estos 30 voluntarios y se consideran un total de 561 atributos.
+
+Observamos el resumen de los diez primeros atributos:
+
+```{r, echo = FALSE, warning=FALSE, results= 'hide', message = FALSE}
+  
+    #LECTURA DE LOS DATOS
+    har.train <- read.table("./datos/X_train.txt", sep="", head = F)
+    lhar.train <- read.table("./datos/y_train.txt", sep="", head = F)
+    har.data.train <- cbind(lhar.train, har.train)
+    
+    har.test <- read.table("./datos/X_test.txt", sep="", head = F)
+    lhar.test <- read.table("./datos/y_test.txt", sep="", head = F)
+    har.data.test <- cbind(lhar.test, har.test)
+
+
+    print(summary(har.train[,1:10]))
+```
+
+En cuanto a las etiquetas, nos encontramos ante un problema de clasificación multiclase, dado que las etiquetas toman valores enteros en el intervalo [1,6]. Cada etiqueta clasifica el movimiento registrado por el dispositivo móvil y lo clasifica en seis tipos:
+
+  1. WALKING
+ 
+  2. WALKING_UPSTAIRS
+
+  3. WALKING_DOWNSTAIRS
+
+  4. SITTING
+
+  5. STANDING
+
+  6. LAYING
+  
+Podemos observar fijándonos en lo que representa cada etiqueta que los tres primeros valores de las etiquetas hacen referencia a actividades muy similares, relacionadas con andar, mientras que las otras tres tienen la misma propiedad, representando estados de no movimiento. Podemos intuir por tanto, en vista a lo que representan las distintas clases, que los datos de las tres primeras clases serán fácilmente separables de los datos de las tres restantes, si las medidas que se han tomado son representativas del movimiento, mientras que a priori será más complicado distinguir dentro de cada grupo de clases, cuál será la asignación correcta.
+
+Al tratarse de un problema de clasificación multiclase, para la aplicación de aquellos métodos que precisen de clasificación binaria para un buen funcionamiento utilizaremos la técnica de *One vs One*, la cual consistirá en dividir nuestro problema de clasificación multiclase en $\binom{6}{2} = 15$ problemas de clasificación binaria de la forma clase_i vs clase_j con $i,j \in \{1,\dots,6\}$,
+
+Así, el cálculo del error para cada modelo propuesto consistirá en el número de errores cometidos. Esto es, número de muestras con etiqueta asignada de forma errónea. Para aquellos modelos que precisen de una adaptación a subproblemas de clasificación binaria, obtendremos quince vectores con las etiquetas predichas por cada modelo de 1vs1, y finalmente asignaremos como etiqueta final a cada dato el valor más votado entre los 15 vectores. A partir de aquí calcularemos el de la misma forma que para el resto de modelos.
+
+# Preprocesado de datos.
+
+  En primer lugar, observamos que nuestra base de datos no contiene valores perdidos (NaNs), por lo cual no será necesario el trato especial de estos valores. Lo mismo ocurre con las variables cualitativas.
+  
+  En cuanto al desbalanceo, observemos el porcentaje de elementos de cada clase en el train y después en el test:
+
+```{r, echo=F,warning=F}
+  #Estudiamos si hay desbalanceo
+  print("El porcentaje de elementos con etiqueta 1 en el train es: ")
+  print(100*sum(lhar.train == 1)/nrow(lhar.train))
+  print("El porcentaje de elementos con etiqueta 2 en el train es: ")
+  print(100*sum(lhar.train == 2)/nrow(lhar.train))
+  print("El porcentaje de elementos con etiqueta 3 en el train es: ")
+  print(100*sum(lhar.train == 3)/nrow(lhar.train))
+  print("El porcentaje de elementos con etiqueta 4 en el train es: ")
+  print(100*sum(lhar.train == 4)/nrow(lhar.train))
+  print("El porcentaje de elementos con etiqueta 5 en el train es: ")
+  print(100*sum(lhar.train == 5)/nrow(lhar.train))
+  print("El porcentaje de elementos con etiqueta 6 en el train es: ")
+  print(100*sum(lhar.train == 6)/nrow(lhar.train))
+```
+
+
+```{r, echo=F,warning=F}
+
+  print("El porcentaje de elementos con etiqueta 1 en el test es: ")
+  print(100*sum(lhar.test == 1)/nrow(lhar.test))
+  print("El porcentaje de elementos con etiqueta 2 en el test es: ")
+  print(100*sum(lhar.test == 2)/nrow(lhar.test))
+  print("El porcentaje de elementos con etiqueta 3 en el test es: ")
+  print(100*sum(lhar.test == 3)/nrow(lhar.test))
+  print("El porcentaje de elementos con etiqueta 4 en el test es: ")
+  print(100*sum(lhar.test == 4)/nrow(lhar.test))
+  print("El porcentaje de elementos con etiqueta 5 en el test es: ")
+  print(100*sum(lhar.test == 5)/nrow(lhar.test))
+  print("El porcentaje de elementos con etiqueta 6 en el test es: ")
+  print(100*sum(lhar.test == 6)/nrow(lhar.test))
+  
+  
+    
+```  
+  
+  Podemos observar que no existe desbalanceo entre las seis clases contempladas, luego no podemos despreciar ninguna. 
+  
+  Aunque los datos están ya normalizados y escalados en [-1,1], estos presentan una gran asimetría como podemos observar:
+  
+```{r, echo=F,warning=F}
+    #Eliminación de variables con varianza 0 o muy próximas (importante para métodos sensibles a distancias)
+   
+   #Ordenamos las columnas por asimetria
+    har_asymmetry <- apply(har.train, 2, skewness)
+    har_asymmetry <- sort(abs(har_asymmetry), decreasing = T)
+    print(head(har_asymmetry))
+    
+```
+  
+  Si representamos el atributo con mayor asimetría de todos obtenemos:
+
+```{r, echo=F,warning=F}
+  hist(har.train$V389, col = "blue")
+```  
+
+  Aunque los datos presentan una gran asimetría, no los quitamos pues las transformaciones son realizadas atributo a atributo y modifican las dependencias entre ellos pudiendo empeorar los métodos empleados.
+  
+  
+  En cuanto a la presencia de ruido, los datos son clasificados por especialistas, luego es razonable pensar que no hay etiquetas mal colocadas (no hay ruido en las etiquetas). Por otra parte, los datos tomados provienen de medidas en un SmartPhone, que según su calidad, dichas medidas pueden tener distinta precisión, así que, aunque no podemos descartar que haya algo de ruido en los datos, con el avance de la tecnología los instrumentos de medida son cada vez más precisos, por lo que la presencia de ruido, si hay, parece ser pequeña.
+  
+  La base de datos presenta un número demasiado alto de atributos, lo cual puede ser un gran problema a la hora utilizar métodos costosos para la predicción de las etiquetas. Con el objetivo de reducir el número de atributos sin perder información relevante, vamos a probar con dos métodos:
+  
+
+  
+##Analisis de componentes principales (PCA)
+  
+  En primer lugar, probaremos a aplicar PCA a los datos con el objetivo de encontrar dependencias entre las variables y simplificar el conjunto de datos reduciendo los tiempos de cómputo. Los nuevos atributos considerados tras aplicar este método son combinaciones lineales de los atributos originales que recogen un tanto por ciento de la varianza acumulada de los datos pasado como argumento (*thresh*). Para la aplicación vamos a considerar *thresh = 0.95*, pues es ya una pérdida de varianza considerable y no queremos perder información útil.
+  
+  Utilizaremos la función *preProcess* pasándole como argumento *method = c("pca")*.
+
+
+```{r, echo=F, warning=F}
+set.seed(123456789)
+ObjetoTrans <- preProcess(har.train,method = c("pca"), thresh = 0.95)
+```
+
+```{r, echo=F, warning=F}
+  print(ObjetoTrans)
+```
+
+Para mantener el 95\% de la varianza se necesitan mantener 102 atributos.
+
+##Regresión LASSO (least absolute shrinkage and selection operator).
+
+  Lasso es un método que lleva a cabo la regularización a la misma vez que realiza selección de características. 
+
+El objetivo se basa en reducir el error de predicción, para ello, se ocupa de reducir la función:
+
+\[
+  R(\beta) = \sum_{i=1}^{n}(y_i - x_i\omega)^2 + \lambda \sum_{i=1}^{p}|\omega_i|
+\]
+
+donde $n$ es el número de muestras, $p$ el número de atributos y $w$ el vector de pesos solución. Así, obtiene diferentes valores de $\lambda$. Entre estos valores devueltos, podemos considerar dos de ellos:
+
+- *lambda.min*, que nos devuelve el valor del $\lambda$ para el que se minimiza el error obtenido.
+- *lambda.1se*. Aunque el $\lambda$ anterior sea menor, presenta una mayor dependencia de las particiones seleccionadas en la validación cruzada. La regla `1se` (one standard error), elige un valor de $\lambda$ para lo suficiente cercano a `lambda.min` para el cual el modelo obtenido sea lo suficiente simple, reduciendo así la dependencia del error respecto a las validaciones.
+
+Podemos contemplar cualquiera de estos valores de $\lambda$ para regularizar nuestro modelo. 
+
+Para obtener el modelo LASSO, realizaremos validación cruzada con tres particiones (dada la elevada dimensión de la base de datos). Tras obtener el modelo, considerando cada uno de los valores de *lambda* anteriormente comentado, obtenemos seis vectores de coeficientes donde cada uno de las componentes de estos vectores representa la relevancia de cada atributo para cada clase. Así, los atributos de los cuales podremos prescindir serán aquellos en los que la componente correspondiente a dicho atributo en todos los vectores sea nula. Realizando estas simplificaciones obtenemos que tras simplificar atributos las dimensiones obtenidas son:
+
+```{r, echo=F, warning=F}
+    set.seed(123456789)
+
+    ml_lasso <- cv.glmnet(as.matrix(har.train), lhar.train[,1], family="multinomial", nfolds = 3)
+    lambda.min <- ml_lasso$lambda.min
+    lambda.1se <- ml_lasso$lambda.1se
+    
+    coeffs.min <- coef(ml_lasso, s = ml_lasso$lambda.min)
+    coeffs.1se <- coef(ml_lasso, s = ml_lasso$lambda.1se)
+    
+    #print(coeffs.min)
+    #print(coeffs.1se)
+    
+    #Eliminamos los atributos del train  
+
+    coefficients.min <- matrix(ncol = 6, nrow = 562)
+    coefficients.1se <- matrix(ncol = 6, nrow = 562)
+    for(i in 1:6){
+      coefficients.min[,i] <- (coeffs.min[[i]])[1:nrow(coeffs.min[[i]]),]
+      coefficients.1se[,i] <- (coeffs.1se[[i]])[1:nrow(coeffs.1se[[i]]),]
+    }
+```
+ 
+ 
+   
+```{r, echo=F, warning=F}
+    
+    har.train_lasso.min = har.train[,abs(coefficients.min[1:6,])>0]
+    har.train_lasso.1se = har.train[,abs(coefficients.1se[1:6,])>0]
+    
+    print("El número de atributos tras aplicar la reducción con lambda.min es: ")
+    print(dim(har.train_lasso.min)[2])
+    
+    print("El número de atributos tras aplicar la reducción con lambda.1se es: ")
+    print(dim(har.train_lasso.1se)[2])
+
+```
+
+Por tanto, aunque sería preferible aplicar una reducción de atributos basada en la regresión LASSO dado que los atributos obtenidos se corresponden con los atributos originales del modelo, obtenemos que tras comparar las tres reducciones de dimensionalidad la que mayor reducción produce es la aplicación de *PCA*. En conclusión, a partir de ahora trabajaremos con el conjunto de datos resultante de aplicar la reducción con *PCA*.
+
+
+```{r, echo=F, warning=F}
+har.trans.train <- predict(ObjetoTrans, har.train)
+har.trans.test <- predict(ObjetoTrans, har.test)
+
+har.train <- har.trans.train  
+har.test <- har.trans.test
+```
+
+#Modelo lineal.
+
+
+Vamos a ajustar un modelo de regresión logística como modelo lineal para los datos observados. Como ya hemos comentado, tenemos 6 etiquetas distintas y aplicaremos la técnica de clasificación 1 vs 1 para descomponer el problema en problemas binarios.
+
+```{r, echo=F,warning=F}
+calculateEtest <- function(ml, test, ltest, s=0){
+
+  #Cálculo de probabilidades
+  if(s==0){
+    ml.prob_test = predict(ml, test, type="response")
+  }else{
+    ml.prob_test = predict(ml,as.matrix(test),type = "response", s = s)
+  }
+
+  # Etest
+  ml.pred_test = rep(0, length(ml.prob_test)) # predicciones por defecto 0
+  ml.pred_test[ml.prob_test >=0.5] = 1 # >= 0.5 clase 1
+  
+
+  ml.Etest = mean(ml.pred_test != ltest)
+  
+  return(list(ml.Etest, ml.prob_test,ml.pred_test))
+}
+
+calculateEin <- function(ml ,ltrain){
+  ml.prob_train = predict(ml, type = "response") #no tenemos que introducirle el train porque recuerda
+  # Ein
+  ml.pred_train = rep(0, length(ml.prob_train)) #predicciones por defecto 0
+  ml.pred_train[ml.prob_train >= 0.5] = 1
+    
+  ml.Ein = mean(ml.pred_train != ltrain)
+
+  return(list(ml.Ein, ml.prob_train,ml.pred_train))
+}
+
+testFamilies <- function(models, test, ltrain, ltest, modelNames = NULL){
+
+  results <- matrix(nrow=length(models), ncol = 2)
+  colnames(results) <- c("Ein","Eout")
+  if(!is.null(modelNames)){
+    rownames(results) <- modelNames
+  }
+  for(i in seq_along(models)){
+    results[i,1] <-calculateEin(models[[i]],ltrain)[[1]]
+    results[i,2] <- 
+      calculateEtest(models[[i]],test,ltest)[[1]]
+  }
+  
+  return(results)
+}
+```
+
+
+
+Los resultados obtenidos son:
+
+```{r, echo=F,warning=F}
+predictions1vs1 <- function(train, test, ltrain, ltest, modelNames = NULL){
+  
+  preds_ij <- matrix(nrow = 15, ncol = length(ltest))
+  
+  k <- 0
+  
+  for(i in 2:6){
+    for(j in 1:(i-1)){
+      #cat(i," vs ",j,":\n")
+      
+      inds_i <- which(ltrain == i)
+      inds_j <- which(ltrain == j)
+
+      ltrain_i <- ltrain[inds_i]
+      ltrain_j <- ltrain[inds_j]
+      
+      train_i <- train[inds_i,]
+      train_j <- train[inds_j,]
+      
+      
+      train_ij <- rbind(train_i,train_j)
+      ltrain_ij <- c(ltrain_i,ltrain_j)
+
+      
+      
+      ltrain_ij[ltrain_ij==j] <- 0
+      ltrain_ij[ltrain_ij==i] <- 1
+
+  
+       ml.logit <- glm(ltrain_ij ~ ., family = binomial(logit), data = train_ij)
+
+       predictions <- calculateEtest(ml.logit,test,ltest)[[3]]
+       predictions[predictions==1] <- i
+       predictions[predictions==0] <- j
+      
+       k <- k+1
+       
+       preds_ij[k,] <- predictions
+    }
+       
+  }
+  
+  preds <- vector(length = length(ltest))
+  for(i in 1:length(ltest)){
+      preds[i] <- names(sort(table(preds_ij[,i]),decreasing=T))[1]
+  }
+
+  errorVec <- sum(preds != ltest)/length(ltest)
+    
+  return(list(preds,errorVec))  
+}
+
+```
+
+```{r, echo=F,warning=F}
+P <- predictions1vs1(har.train,har.test,as.vector(lhar.train[,1]),as.vector(lhar.test[,1]))
+
+# Matriz de confusión
+Eout.linear <- P[[2]]
+confussion.linear <- table(P[[1]],lhar.test[,1])
+
+print("Etest obtenido por el modelo lineal:")
+print(Eout.linear)
+print("Matriz de consusión obtenida por el modelo lineal:")
+print(confussion.linear)
+
+
+```
+
+Como podemos observar, el modelo lineal ya produce unos resultados bastante buenos, con un error de clasificación solo de un 8 \%. Además, hemos obtenido este error sin necesidad de realizar ninguna transformación en las características. Esto nos indica que los datos, una vez aplicadas las transformaciones realizadas, presentan un comportamiento lineal, que ha sido bien aprovechado por la regresión logística. Los distintos modelos no lineales que aplicaremos tendrán que intentar reducir este error de clasificación, que ya es bastante aceptable.
+
+
+
+#Redes Neuronales
+
+Las redes neuronales son un modelo formado por una estructura compleja con conexiones entre las distinas unidades o neuronas, y con una gran capacidad de aprendizaje. Sin embargo, la complejidad de las redes neuronales conduce también a distintos problemas. Por una parte, es necesario elegir de forma acertada el número de capas sobre el que aprender nuestros datos. De no hacerlo, un número demasiado alto de capas puede conducirnos a sobreaprender. Por otra parte, el proceso de aprendizaje en una red neuronal es costoso computacionalmente.
+
+
+Debido a las dimensiones de nuestra base de datos, formular una arquitectura de red neuronal con más de una capa o con muchas unidades en la capa oculta se hace inmanejable. Además, si consideramos más de una capa oculta el número de conexiones puede dispararse, pudiendo obtener, para un número suficientemente grande de neuronas por capa, un número de pesos en torno al número de instancias del problema, luego apenas tendríamos un dato por peso durante el aprendizaje. Por ello, definimos nuestro modelo de red neuronal por una arquitectura con una única capa oculta y con un número fijo de unidades en la capa oculta igual a 5. Utilizaremos la función `neuralnet` proporcionada por R, de la que destacamos los siguientes parámetros:
+
+- **hidden: ** Número de capas ocultas (hidden = 5).
+- **threshold: ** Criterio de parada. Umbral entre las derivadas parciales de la función de error en dos iteraciones consecutivas. Lo dejaremos por defecto, 0.1.
+- **stepmax: ** Número máximo de pasos. Estableceremos también este criterio de parada para evitar quedar atrapados en mínimos locales cuando usamos valores de tasa de aprendizaje muy bajas.
+- **rep: ** Número de repeticiones que realizamos del aprendizaje de los pesos a partir de los datos de train. Realizaremos tres repeticiones para cada valor de la tasa de aprendizaje.
+- **learningrate: ** Tasa de aprendizaje. Será el valor a estimar y tomará valores entre [0.8, 1.2]. Dependiendo de este valor, los saltos entre los pesos serán más o menos pronunciados. Se establecerá con un único valor en el intervalo dependiendo del ganador tras la estimación.
+- **lifesign: ** Para establecer lo que queremos que imprima la función durante el aprendizaje de la red neuronal. Lo utilizaremos con dos valores diferentes: 'minimal' para el cálculo de la tasa de aprendizaje óptima y 'full' cuando analicemos más profundamente.
+- **err.fct: ** Función de error usada para el cálculo del error. Usaremos la función por defecto, `sse`: suma de errores cuadráticos.
+- **act.fct: ** Función de activación utilizada en las neuronas. Usaremos la función por defecto: la función logística.
+- **linear.output: ** Lo pondremos a *FALSE* para que interprete el problema como un problema de clasificación.
+
+
+Como ya hemos comentado, para establecer el modelo calcularemos la tasa de aprendizaje óptima para la arquitectura de una capa con cinco unidades en la capa:
+
+
+```{r, echo=F,warning=F}
+  lhar.train.multi01 <- class.ind(lhar.train[,1])
+  har.data.nnet <- cbind(har.train,lhar.train.multi01)
+
+  names(har.data.nnet) <- c(names(har.data.nnet)[1:102], "l1", "l2", "l3", "l4", "l5", "l6")
+  n <- names(har.data.nnet)[1:102]
+
+# Obtenemos la fórmula:
+  f.nnet <- as.formula(paste("l1 + l2 + l3 + l4 + l5 + l6 ~",paste(n[!n %in% c("l1","l2","l3","l4","l5","l6")], collapse = " + ")))
+
+
+testingLearningRate <- function(formula, data,ldata){
+    rep <- sample(nrow(data), 0.3*nrow(data))
+    train <- data[-rep,]
+    test <- data[rep,(1:102)]
+    ltest <- ldata[rep,]
+    rates <- seq(from = 0.8, to = 1.2, 0.1)
+    error <- vector()
+
+    for(i in seq_along(rates)){
+      ann <- neuralnet(formula = formula, data = train, hidden = 5, lifesign = 'minimal', learningrate = rates[i], rep = 3, linear.output = FALSE, act.fct = "logistic", stepmax = 10000)
+      
+      pr.nn <- compute(ann, test)
+      pr.nn_ <- pr.nn$net.result
+      pr.nn_2 <- max.col(pr.nn_)
+
+      error[i] <- 1 - mean(pr.nn_2 == ltest)
+    }
+    
+    return(error)
+}
+
+```
+
+```{r, echo=F,warning=F}
+  set.seed(123456789)
+
+  err.tasa <- testingLearningRate(f.nnet, har.data.nnet,lhar.train)
+```
+  
+
+Los errores obtenidos en las diferentes pruebas han sido:
+
+```{r, echo=F,warning=F}
+  err.tasa.rate <- cbind(c(0.8,0.9,1,1.1,1.2),  err.tasa)
+  print(err.tasa.rate)
+```
+
+Luego, el mejor valor para la tasa de aprendizaje es $\eta = 1.1$. Definimos el modelo con esta tasa de aprendizaje.
+
+
+```{r, echo=F,warning=F}
+
+set.seed(996)
+
+ann <- neuralnet(formula = f.nnet, data = har.data.nnet, hidden = 5, lifesign = 'full', learningrate = 1.1, rep = 1, linear.output = FALSE, act.fct = "logistic", stepmax = 10000)
+
+pr.nn <- compute(ann, har.test)
+pr.nn_ <- pr.nn$net.result
+pr.nn_2 <- max.col(pr.nn_)
+Eout.nn <- 1 - mean(pr.nn_2 == lhar.test)
+confussion.nn <- table(pr.nn_2, lhar.test[,1])
+
+print("Etest obtenido por la red neuronal:")
+print(Eout.nn)
+print("Matriz de confusión obtenida en la red neuronal:")
+print(confussion.nn)
+
+```
+
+Observamos que el error obtenido es mayor que el obtenido con el modelo lineal. Una de las razones es que, debido a la complejidad computacional, no hemos podido probar modelos con mayor número de unidades, y por tanto es posible que esta no sea la mejor estructura de red neuronal para el problema. Empleando un mayor tiempo de cómputo podría ser posible reducir el error, pero en tal caso habría que decidir si la reducción del error compensa el tiempo empleado, en comparación con otros modelos que hayan sido más eficientes y con errores de clasificación cercanos, como el lineal.
+
+
+#Máquina de Vectores Soporte
+
+Las máquinas de vectores soporte son una de las técnicas más utilizadas para aprender distintos conjuntos de datos, por su simplicidad, su capacidad de maximizar márgenes y su facilidad para actuar en clasificaciones no lineales usando funciones kernel. Suelen proporcionar mejores resultados cuando los datos se reparten de forma homogénea y con poco ruido, permitiendo así controlar los márgenes de separación a partir de un conjunto pequeño de datos, los vectores soporte. Si el conjunto de datos es más heterogéneo, el ajuste será más complicado, puesto que la cantidad de vectores soporte puede aumentar, y serán más los vectores a adaptar. 
+
+En nuestro caso, ya intuíamos previamente que los datos de las clases 1,2 y 3 pueden ser a priori fácilmente distinguibles de los de las clases 4,5 y 6, mientras que dentro de cada grupo de clases la separabilidad de los datos puede ser más complicada. Los vectores soporte es posible que se concentren en torno a los márgenes internos a cada grupo de clases. Según la capacidad de separación que tengan para los datos medidos los resultados para SVM serán mejores o no.
+
+Vamos a elegir por validación cruzada 5-fold el modelo más adecuado, fijando un kernel RBF-Gaussiano y probando distintos valores para el hiperparámetro. Los valores que probaremos para el parámetro $\gamma$ serán 0.01, 0.1, 1 y 10. Los errores de validación obtenidos son:
+
+
+```{r, echo=F,warning=F}
+
+tc <- tune.control(cross = 5)
+
+svm_tune <- tune(svm, train.x = har.train, train.y = factor(lhar.train[,1]), kernel = "radial", ranges = list(gamma=c(0.01,0.1,1,10)), tunecontrol = tc)
+
+print("Resultados de tune sobre SVM:")
+print(svm_tune)
+
+print("Errores obtenidos para cada parámetro en la validación cruzada:")
+print(svm_tune$performances)
+```
+
+Aprendemos el mejor modelo de SVM obtenido en la validación cruzada, es decir, para $\gamma = 0,01$:
+
+```{r, echo=F,warning=F}
+
+svm_model <- svm(x = har.train, y = factor(lhar.train[,1]), kernel = "radial", gamma = 0.01)
+print(summary(svm_model))
+
+
+```
+
+En el resumen anterior podemos ver bastante información sobre el modelo que hemos obtenido. Por un lado, vemos los parámetros que se han utilizado, y por otra parte, vemos el número de vectores soporte obtenidos. Además, en el vector del resumen se indica cuántos vectores soporte son separadores en cada clase. Podemos ver que más de la mitad de los datos son vectores soporte y que el número de vectores soporte se distribuye de forma similar en las distintas clases. Lo primero nos indica que los datos de las distintas clases están separados por márgenes pequeños, y además es una causa de la poca eficiencia del algoritmo en este caso, pues ha requerido de la adaptación de una cantidad considerable de vectores soporte. Lo segundo puede ser consecuencia de que los datos no están desbalanceados, y por tanto la distribución de vectores soporte es similar para cada clase.
+
+Finalmente, evaluamos los datos test para el modelo obtenido.
+
+```{r, echo=F,warning=F}
+
+svm.pred <- predict(svm_model,har.test)
+
+Eout.svm <- sum(svm.pred != lhar.test[,1])/length(svm.pred)
+confussion.svm <- table(svm.pred,lhar.test[,1])
+
+print("Etest obtenido en SVM:")
+print(Eout.svm)
+print("Matriz de confusión obtenida en SVM:")
+print(confussion.svm)
+  
+```
+
+Como vemos, el error obtenido es el menor hasta el momento, superando ligeramente al lineal, aunque el tiempo de cómputo requerido ha sido mayor. También si contamos el tiempo para estimación de parámetros, se ha requerido una cantidad de tiempo considerable. Por otra parte, la minimización del riesgo estructural del SVM nos confirma que hay una separación importante entre por lo menos los grupos de clases mencionados anteriormente, y dicha separación contribuye a disminuir el error.
+
+#Boosting
+
+Boosting es una técnica de aprendizaje basada en clasificadores débiles que se combinan para producir buenos resultados. La técnica AdaBoost sigue la mecánica de Boosting de forma iterativa, adaptándo los nuevos clasificadores según los errores obtenidos.  Tiene una gran capacidad de ajuste, pero a la vez tiene una gran capacidad para maximizar márgenes, lo que le permite generalizar de forma bastante buena. Sin embargo, puede ser muy sensible al ruido en los datos, y la elección del clasificador simple influye mucho en su correcto funcionamiento.
+
+En nuestro caso, utilizaremos como clasificador funciones stamp, o árboles de decisión de un nivel. A priori no conocemos la cantidad de ruido en los datos, aunque, como ya se ha comentado, es posible que haya algún ruido ligero consecuencia de errores de precisión en las medidas tomadas por los dispositivos. Si este ruido es lo suficientemente destacable, AdaBoost no producirá buenos resultados.
+
+Utilizamos dos funciones de R para obtener estos modelos de Boosting. Por un lado, utilizamos AdaBoost comparando las clases mediante la técnica 1 vs 1 ya realizada con los modelos lineales, y por otra parte, utilizaremos la librería de R maboost, que proporciona una versión generalizada de AdaBoost para problemas de clasificación con múltiples etiquetas.
+
+En primer lugar aprendemos los distintos modelos para el primer caso, con la función de R `gbm` junto con la técnica 1 vs 1. Los resultados obtenidos son:
+
+```{r, echo=F,warning=F}
+boostingPredictions1vs1 <- function(train, test, ltrain, ltest, modelNames = NULL){
+  
+  preds_ij <- matrix(nrow = 15, ncol = length(ltest))
+  
+  k <- 0
+  
+  for(i in 2:6){
+    for(j in 1:(i-1)){
+      #cat(i," vs ",j,":\n")
+      
+      inds_i <- which(ltrain == i)
+      inds_j <- which(ltrain == j)
+
+      ltrain_i <- ltrain[inds_i]
+      ltrain_j <- ltrain[inds_j]
+      
+      train_i <- train[inds_i,]
+      train_j <- train[inds_j,]
+      
+      
+      train_ij <- rbind(train_i,train_j)
+      ltrain_ij <- c(ltrain_i,ltrain_j)
+
+      
+      
+      ltrain_ij[ltrain_ij==j] <- 0
+      ltrain_ij[ltrain_ij==i] <- 1
+
+       gbm.boost <- gbm(ltrain_ij ~ ., data = train_ij, distribution = "adaboost", n.trees = 5000)
+         
+         #glm(ltrain_ij ~ ., family = binomial(logit), data = train_ij)
+
+       predictions <- predict(gbm.boost,har.test,n.trees = 5000,type = "response" )
+       predictions[predictions>=0.5] <- i
+       predictions[predictions<0.5] <- j
+      
+       k <- k+1
+       
+       preds_ij[k,] <- predictions
+    }
+       
+  }
+  
+  preds <- vector(length = length(ltest))
+  for(i in 1:length(ltest)){
+      preds[i] <- names(sort(table(preds_ij[,i]),decreasing=T))[1]
+  }
+
+  errorVec <- sum(preds != ltest)/length(ltest)
+    
+  return(list(preds,errorVec))  
+}
+
+```
+
+```{r, echo=F,warning=F}
+B <- boostingPredictions1vs1(har.train,har.test,as.vector(lhar.train[,1]),as.vector(lhar.test[,1]))
+
+# Matriz de confusión
+Eout.adagbm <- B[[2]]
+confussion.adagbm <- table(B[[1]],lhar.test[,1])
+
+print("Etest obtenido en AdaBoost - gbm:")
+print(Eout.adagbm)
+print("Matriz de confusión obtenida en AdaBoost - gbm:")
+print(confussion.adagbm)
+
+
+```
+
+Vemos que el error es bastante alto, y mucho más alto que todos los obtenidos anteriormente. Como ya hemos comentado, el boosting pude ser muy sensible al ruido en los datos, pero como también hemos comentado, no parece que haya demasiado ruido en nuestro conjunto de datos. Por ello, para comprobar si realmente los malos resultados se deben al ruido, para la siguiente función de boosting, `maboost`, utilizaremos un parámetro de regularización. Con esto, se añade un término de regularización basado en la norma 1 para solucionar el ruido. Aprendemos los datos de entrenamiento con este modelo y los validamos sobre el conjunto test, el error obtenido es:
+
+
+
+```{r, echo=F, warning=F}
+#sparsefactor -> true para aplicar regularización explicita norma L1 (?)
+maboost_model <- maboost(x = har.train, y = as.factor(lhar.train[,1]), sparsefactor = TRUE)  
+
+maboost.pred <- predict(maboost_model,har.test)
+
+print("Etest obtenido en maboost:")
+Eout.maboost <- sum(maboost.pred != lhar.test[,1])/length(maboost.pred)
+print(Eout.maboost)
+print("Matriz de confusión obtenida en maboost:")
+confussion.maboost <- table(maboost.pred,lhar.test[,1])
+print(confussion.maboost)
+
+```
+
+Como vemos, el error apenas se ha reducido en un 2 \% y sigue siendo bastante grande. Por tanto, es posible que los resultados obtenidos no se deban al ruido, sino a otros factores a los que también es sensible el boosting, como que el clasificador débil elegido (las funciones stamp) no sean adecuadas para el conjunto de datos.
+
+#RandomForest
+
+Random Forest es una técnica de aprendizaje basada en clasificadores simples utilizando bagging. Es  una técnica con una gran componente aleatoria, la cual permite obtener buenos resultados cuando trabajamos con datos más difusos o con más ruido. También puede ser bastante eficaz para clasificar problemas con múltiples etiquetas, aunque puede necesitar un gran número de ejemplos para que la aleatoriedad del algoritmo permita generalizar bien para la clasificación de nuevos datos.
+
+En nuestro caso, disponemos tanto de un problema con múltiples etiquetas como de bastantes ejemplos, por lo que puede funcionar bien. En cuanto a la presencia de ruido, ya hemos visto que no parece haber mucho ruido, salvo el que pueda obtenerse de errores de medida. En cualquier caso, Random Forest es una técnica para la cual los resultados sobre nuestro conjunto de datos pueden ser buenos.
+
+A continuación nos planteamos definir un modelo con RandomForest. Utilizaremos la función `randomForest` proporcionada por R, de la que destacamos los siguientes parámetros:
+
+- **ntree: ** Número de árboles considerados. Para estimar este número, realizaremos validación cruzada haciendo uso de la función `tune` proporiconada por R. 
+- **mtry: ** Número de variables elegidas de forma aleatoria como candidatas para cada partición. Según los parámetros visto en teoría, para los problemas de clasificación el valor óptimo sería $sqrt(p)$ donde p sería el número de atributos considerados, por tanto, para nuestro problema *mtry = 10*. 
+
+Para comprobar que se corresponde el valor óptimo con el valor establecido teóricamente, utilizamos la función `tuneRF` que nos devuelve el mejor valor de *mtry*. 
+
+
+```{r, echo=F,warning=F,results='hide', message = F}
+    #La función tuneRF calcula a partir del valor por defecto de mtry el valor óptimo de mtry para el randomForest
+    #Convertimos la etiqueta a un factor para que haga clasificación
+    flhar.train <- as.factor(lhar.train[,1])
+    best.mtry <- tuneRF(har.train, flhar.train, stepFactor = 1, improve = 0.02, ntree = 50)
+```
+
+```{r, echo=F,warning=F}
+  print("El valor óptimo de mtry calculado es: ")
+  print(best.mtry[,1])
+```
+
+Luego, el valor óptimo calculado del *mtry* se corresponde con el valor óptimo teórico. De aqui en adelante, utilizamos *mtry* = 10.
+
+A continuación, experimentamos con el número de árboles óptimo para la definición de nuestro modelo de Random Forest final, consideraremos los valores de número árboles entre [100,1000]. Relizamos validación cruzada (5 folds) con la función tune y obtenemos lo siguiente:
+
+```{r, echo=F,warning=F}
+  set.seed(123456789)
+   best.params <- tune(method = randomForest, har.train, flhar.train, ranges = list(ntree = c(100,200,300,400,500, 600, 700, 800, 900, 1000), mtry = 10), tunecontrol = tc)
+
+```
+
+
+
+```{r, echo=F,warning=F}
+  print(best.params$performances)
+```
+```{r, echo=F,warning=F}
+  print(best.params)
+```
+
+
+Como podemos ver, el número óptimo de áboles obtenido ha sido 500, aunque el error no ha variado mucho. 
+
+Podemos visualizar el progreso del error en función del número de árboles utilizado en la siguiente gráfica:
+
+```{r, echo=F,warning=F}
+  points <- best.params$performances[c(1,3)]
+  plot(points, type = "l", col = "blue")
+```
+
+
+Aunque podemos observar que las diferencias entre los errores obtenidos son pequeñas, como 500 árboles sigue siendo un número de árboles tratable en cuanto a tiempo de cómputo, elegimos este número como valor del parámetro *ntree*. Así, definimos nuestro modelo ganador de Random Forest con 500 árboles y *mtry = 10*.
+
+Evaluamos sobre los datos test el mejor modelo obtenido en la validación cruzada.
+
+```{r, echo=F,warning=F}
+set.seed(123456789)
+
+rf_model <- randomForest(x = har.train, y = flhar.train, ntree = 500, mtry = 10)
+summary(rf_model)
+
+```
+
+```{r, echo=F,warning=F}
+
+rf.pred <- predict(rf_model,har.test)
+Eout.rf <- sum(rf.pred != lhar.test[,1])/length(rf.pred)
+confussion.rf <- table(rf.pred,lhar.test[,1])
+
+print("Etest obtenido en Random Forest:")
+print(Eout.rf)
+print("Matriz de confusión obtenida en Random Forest:")
+print(confussion.rf)
+  
+```
+
+En este caso, el error obtenido es comparable al obtenido en la red neuronal, siendo de nuevo algo mayor que el lineal. En este caso, el número de datos no es el suficiente como para que los árboles aprendan lo suficiente para saber generalizar en mayor medida.
+
+#Análisis de los resultados y conclusiones
+
+Finalmente, comparamos conjuntamente todos los resultados obtenidos.
+
+```{r, echo=F,warning=F}
+
+model_errors <- c(Eout.linear,Eout.nn,Eout.svm,Eout.rf,Eout.adagbm,Eout.maboost)
+model_confussions <- list(confussion.linear,confussion.nn,confussion.svm,confussion.rf,confussion.adagbm,confussion.maboost)
+model_names <- c("Regresión Logística","Red neuronal", "SVM", "Random Forest","Adaboost - BGM", "Adaboost - MABoost")
+names(model_errors) <- model_names
+names(model_confussions) <- model_names
+print(model_errors)
+print(model_confussions)
+```
+
+En primer lugar, si nos fijamos en las matrices de confusión obtenidas en todos los modelos evaluados, vemos que todas verifican la propiedad de que las submatrices derecha superior e izquierda inferior tienen la mayoría de sus valores nulos o muy cercanos a 0. Esto nos confirma lo que habíamos intuido previamente, y es que los datos pertenecientes a alguna de las tres primeras clases son fácilmente separables de los datos de las tres últimas clases. Todos los algoritmos son capaces de realizar esta separación salvo pequeñas diferencias en el número de errores.
+
+Por otro lado, tras haber comparado todos los algoritmos obtenemos que SVM es el que mejores resultados ha proporcionado en cuanto a error de clasificación obtenido. Es conocido que SVM tiene una gran capacidad de generalización, y se comprueba efectivamente sobre nuestro conjunto de datos. Sin embargo, la ganancia en clasificación trae consigo un coste computacional importante.
+
+Volviendo al tema del coste computacional, hemos obtenido también que el modelo lineal ha obtenido unos resultados muy buenos (solo superados por SVM) y con un coste menor derivado de la simplicidad del modelo. Luego la regresión logística es también un modelo a tener en cuenta y una muy buena opción para predecir nuestro problema.
+
+Por útltimo, hay que recalcar la inferioridad en las tasas de clasificación obtenidas por los modelos de boosting en este problema, pues son con diferencia los métodos que peores resultados proporcionan, a la vez que traen consigo un tiempo de cómputo considerable. 
+
+En conclusión, a la hora de ajustar un modelo para estos datos, siempre que el tiempo de cómputo no sea un problema el modelo más adecuado es SVM, aunque si esto supone alguna complicación podemos conformarnos con el modelo lineal, cuyos resultados son igualmente aceptables.
+
+
