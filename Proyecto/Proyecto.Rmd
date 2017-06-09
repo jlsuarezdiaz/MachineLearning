@@ -34,7 +34,7 @@ toc: yes
 
 ## Comprensión del problema a resolver: Human Activity Recognition Using Smartphones Data Set.
 
-La base de datos elegida para el problema recoge la información de un grupo 30 voluntarios con edades comprendidas entre 18-48 años. Cada uno de estos individuos tenía que realizar una serie de actividades con el teléfono móvil enganchado en su cintura. Así, utilizando el dispositivo se podían registrar la aceleración lineal y angular en 3-ejes. Los experimentos se grabana en vídeo para poder etiquetar los datos de forma manual. De entre los datos recogidos, se seleccionaron de forma aleatoria el 70\% de esto para hacer de conjunto de training mientras que el otro 30\% se encargaba de recoger los datos para el test. 
+La base de datos elegida para el problema recoge la información de un grupo 30 voluntarios con edades comprendidas entre 18-48 años. Cada uno de estos individuos tenía que realizar una serie de actividades con el teléfono móvil enganchado en su cintura. Así, utilizando el dispositivo se podían registrar la aceleración lineal y angular en 3-ejes. Los experimentos se graban en vídeo para poder etiquetar los datos de forma manual. De entre los datos recogidos, se seleccionaron de forma aleatoria el 70\% de estos para hacer de conjunto de training mientras que el otro 30\% se seleccionaron para el test. 
 Así, la base de datos se compone de 7352 muestras en el conjunto de train y 2947 en el conjunto de test, formando un total de 10299 muestras recogidas de estos 30 voluntarios y se consideran un total de 561 atributos.
 
 Observamos el resumen de los diez primeros atributos:
@@ -64,9 +64,9 @@ En cuanto a las etiquetas, nos encontramos ante un problema de clasificación mu
   
 Podemos observar fijándonos en lo que representa cada etiqueta que los tres primeros valores de las etiquetas hacen referencia a actividades muy similares, relacionadas con andar, mientras que las otras tres tienen la misma propiedad, representando estados de no movimiento. Podemos intuir por tanto, en vista a lo que representan las distintas clases, que los datos de las tres primeras clases serán fácilmente separables de los datos de las tres restantes, si las medidas que se han tomado son representativas del movimiento, mientras que a priori será más complicado distinguir dentro de cada grupo de clases, cuál será la asignación correcta.
 
-Al tratarse de un problema de clasificación multiclase, para la aplicación de aquellos métodos que precisen de clasificación binaria para un buen funcionamiento utilizaremos la técnica de *One vs One*, la cual consistirá en dividir nuestro problema de clasificación multiclase en $\binom{6}{2} = 15$ problemas de clasificación binaria de la forma clase_i vs clase_j con $i,j \in [1,6]$,
+Al tratarse de un problema de clasificación multiclase, para la aplicación de aquellos métodos que precisen de clasificación binaria para un buen funcionamiento utilizaremos la técnica de *One vs One*, la cual consistirá en dividir nuestro problema de clasificación multiclase en $\binom{6}{2} = 15$ problemas de clasificación binaria de la forma clase_i vs clase_j con $i,j \in \{1,\dots,6\}$,
 
-Así, el cálculo del error para cada modelo propuesto consistirá en el número de errores cometidos. Esto es, número de muestras con etiqueta asignada de forma errónea. Para aquellos modelos que precisen de una adaptación a subproblemas de clasificación binaria, obtendremos quince vectores con la probabilidad de asignación de cada una de las seis etiquetas disponibles. Por tanto, le asignaremos a cada elemento la etiqueta que obtenga una mayor probabilidad, calculando el error en este caso de la misma forma que para el resto de modelos.
+Así, el cálculo del error para cada modelo propuesto consistirá en el número de errores cometidos. Esto es, número de muestras con etiqueta asignada de forma errónea. Para aquellos modelos que precisen de una adaptación a subproblemas de clasificación binaria, obtendremos quince vectores con las etiquetas predichas por cada modelo de 1vs1, y finalmente asignaremos como etiqueta final a cada dato el valor más votado entre los 15 vectores. A partir de aquí calcularemos el de la misma forma que para el resto de modelos.
 
 ## Preprocesado de datos.
 
@@ -110,7 +110,7 @@ Así, el cálculo del error para cada modelo propuesto consistirá en el número
     
 ```  
   
-  Podemos observar que no existe desbalance entre las seis clases contempladas, luego no podemos despreciar ninguna. 
+  Podemos observar que no existe desbalanceo entre las seis clases contempladas, luego no podemos despreciar ninguna. 
   
   Aunque los datos están ya normalizados y escalados en [-1,1], estos presentan una gran asimetría como podemos observar:
   
@@ -135,7 +135,7 @@ Así, el cálculo del error para cada modelo propuesto consistirá en el número
   
   En cuanto a la presencia de ruido, los datos son clasificados por especialistas, luego es razonable pensar que no hay etiquetas mal colocadas (no hay ruido en las etiquetas). Por otra parte, los datos tomados provienen de medidas en un SmartPhone, que según su calidad, dichas medidas pueden tener distinta precisión, así que, aunque no podemos descartar que haya algo de ruido en los datos, con el avance de la tecnología los instrumentos de medida son cada vez más precisos, por lo que la presencia de ruido, si hay, parece ser pequeña.
   
-  Además, la base de datos presenta un número demasiado alto de atributos, lo cual puede ser un gran problema a la hora utilizar métodos costosos para la predicción de las etiquetas. Con el objetivo de reducir el número de atributos sin perder información relevante, vamos a probar con dos métodos:
+  La base de datos presenta un número demasiado alto de atributos, lo cual puede ser un gran problema a la hora utilizar métodos costosos para la predicción de las etiquetas. Con el objetivo de reducir el número de atributos sin perder información relevante, vamos a probar con dos métodos:
   
 
   
@@ -143,15 +143,15 @@ Así, el cálculo del error para cada modelo propuesto consistirá en el número
   
   En primer lugar, probaremos a aplicar PCA a los datos con el objetivo de encontrar dependencias entre las variables y simplificar el conjunto de datos reduciendo los tiempos de cómputo. Los nuevos atributos considerados tras aplicar este método son combinaciones lineales de los atributos originales que recogen un tanto por ciento de la varianza acumulada de los datos pasado como argumento (*thresh*). Para la aplicación vamos a considerar *thresh = 0.95* ...
   
-  Utilizaremos la función *preProcess* pasándole como argumento *method = c(pca)*.
+  Utilizaremos la función *preProcess* pasándole como argumento *method = c("pca")*.
 
 
-```{r, echo=T, warning=F}
+```{r, echo=F, warning=F}
 set.seed(123456789)
 ObjetoTrans <- preProcess(har.train,method = c("pca"), thresh = 0.95)
 ```
 
-```{r, echo=T, warning=F}
+```{r, echo=F, warning=F}
   print(ObjetoTrans)
 ```
 
@@ -176,7 +176,7 @@ Podemos contemplar cualquiera de estos valores de $\lambda$ para regularizar nue
 
 Para obtener el modelo LASSO, realizaremos validación cruzada con tres particiones (dada la elevada dimensión de la base de datos). Tras obtener el modelo, considerando cada uno de los valores de *lambda* anteriormente comentado, obtenemos seis vectores de coeficientes donde cada uno de las componentes de estos vectores representa la relevancia de cada atributo para cada clase. Así, los atributos de los cuales podremos prescindir serán aquellos en los que la componente correspondiente a dicho atributo en todos los vectores sea nula. Realizando estas simplificaciones obtenemos que tras simplificar atributos las dimensiones obtenidas son:
 
-```{r, echo=T, warning=F}
+```{r, echo=F, warning=F}
     set.seed(123456789)
 
     ml_lasso <- cv.glmnet(as.matrix(har.train), lhar.train[,1], family="multinomial", nfolds = 3)
@@ -186,8 +186,8 @@ Para obtener el modelo LASSO, realizaremos validación cruzada con tres particio
     coeffs.min <- coef(ml_lasso, s = ml_lasso$lambda.min)
     coeffs.1se <- coef(ml_lasso, s = ml_lasso$lambda.1se)
     
-    print(coeffs.min)
-    print(coeffs.1se)
+    #print(coeffs.min)
+    #print(coeffs.1se)
     
     #Eliminamos los atributos del train  
 
@@ -201,7 +201,7 @@ Para obtener el modelo LASSO, realizaremos validación cruzada con tres particio
  
  
    
-```{r, echo=T, warning=F}
+```{r, echo=F, warning=F}
     
     har.train_lasso.min = har.train[,abs(coefficients.min[1:6,])>0]
     har.train_lasso.1se = har.train[,abs(coefficients.1se[1:6,])>0]
@@ -217,7 +217,7 @@ Para obtener el modelo LASSO, realizaremos validación cruzada con tres particio
 Por tanto, aunque sería preferible aplicar una reducción de atributos basada en la regresión LASSO dado que los atributos obtenidos se corresponden con los atributos originales del modelo, obtenemos que tras comparar las tres reducciones de dimensionalidad la que mayor reducción produce es la aplicación de *PCA*. En conclusión, a partir de ahora trabajaremos con el conjunto de datos resultante de aplicar la reducción con *PCA*.
 
 
-```{r, echo=T, warning=F}
+```{r, echo=F, warning=F}
 har.trans.train <- predict(ObjetoTrans, har.train)
 har.trans.test <- predict(ObjetoTrans, har.test)
 
@@ -227,7 +227,6 @@ har.test <- har.trans.test
 
 #Modelo lineal.
 
-## Selección de clases de funciones a usar
 
 Vamos a ajustar un modelo de regresión logística como modelo lineal para los datos observados. Como ya hemos comentado, tenemos 6 etiquetas distintas y aplicaremos la técnica de clasificación 1 vs 1 para descomponer el problema en problemas binarios.
 
@@ -292,7 +291,7 @@ predictions1vs1 <- function(train, test, ltrain, ltest, modelNames = NULL){
   
   for(i in 2:6){
     for(j in 1:(i-1)){
-      cat(i," vs ",j,":\n")
+      #cat(i," vs ",j,":\n")
       
       inds_i <- which(ltrain == i)
       inds_j <- which(ltrain == j)
@@ -345,7 +344,9 @@ P <- predictions1vs1(har.train,har.test,as.vector(lhar.train[,1]),as.vector(lhar
 Eout.linear <- P[[2]]
 confussion.linear <- table(P[[1]],lhar.test[,1])
 
+print("Etest obtenido por el modelo lineal:")
 print(Eout.linear)
+print("Matriz de consusión obtenida por el modelo lineal:")
 print(confussion.linear)
 
 
@@ -439,7 +440,9 @@ pr.nn_2 <- max.col(pr.nn_)
 Eout.nn <- 1 - mean(pr.nn_2 == lhar.test)
 confussion.nn <- table(pr.nn_2, lhar.test[,1])
 
+print("Etest obtenido por la red neuronal:")
 print(Eout.nn)
+print("Matriz de confusión obtenida en la red neuronal:")
 print(confussion.nn)
 
 ```
@@ -453,15 +456,23 @@ Las máquinas de vectores soporte son una de las técnicas más utilizadas para 
 
 En nuestro caso, ya intuíamos previamente que los datos de las clases 1,2 y 3 pueden ser a priori fácilmente distinguibles de los de las clases 4,5 y 6, mientras que dentro de cada grupo de clases la separabilidad de los datos puede ser más complicada. Los vectores soporte es posible que se concentren en torno a los márgenes internos a cada grupo de clases. Según la capacidad de separación que tengan para los datos medidos los resultados para SVM serán mejores o no.
 
+Vamos a elegir por validación cruzada 5-fold el modelo más adecuado, fijando un kernel RBF-Gaussiano y probando distintos valores para el hiperparámetro. Los valores que probaremos para el parámetro $\gamma$ serán 0.01, 0.1, 1 y 10. Los errores de validación obtenidos son:
+
 
 ```{r, echo=F,warning=F}
 
 tc <- tune.control(cross = 5)
 
 svm_tune <- tune(svm, train.x = har.train, train.y = factor(lhar.train[,1]), kernel = "radial", ranges = list(gamma=c(0.01,0.1,1,10)), tunecontrol = tc)
+
+print("Resultados de tune sobre SVM:")
+print(svm_tune)
+
+print("Errores obtenidos para cada parámetro en la validación cruzada:")
+print(svm_tune$performances)
 ```
 
-Aprendemos el mejor modelo de SVM obtenido en la validación cruzada.
+Aprendemos el mejor modelo de SVM obtenido en la validación cruzada, es decir, para $\gamma = 0,01$:
 
 ```{r, echo=F,warning=F}
 
@@ -482,7 +493,9 @@ svm.pred <- predict(svm_model,har.test)
 Eout.svm <- sum(svm.pred != lhar.test[,1])/length(svm.pred)
 confussion.svm <- table(svm.pred,lhar.test[,1])
 
+print("Etest obtenido en SVM:")
 print(Eout.svm)
+print("Matriz de confusión obtenida en SVM:")
 print(confussion.svm)
   
 ```
@@ -508,7 +521,7 @@ boostingPredictions1vs1 <- function(train, test, ltrain, ltest, modelNames = NUL
   
   for(i in 2:6){
     for(j in 1:(i-1)){
-      cat(i," vs ",j,":\n")
+      #cat(i," vs ",j,":\n")
       
       inds_i <- which(ltrain == i)
       inds_j <- which(ltrain == j)
@@ -562,7 +575,9 @@ B <- boostingPredictions1vs1(har.train,har.test,as.vector(lhar.train[,1]),as.vec
 Eout.adagbm <- B[[2]]
 confussion.adagbm <- table(B[[1]],lhar.test[,1])
 
+print("Etest obtenido en AdaBoost - gbm:")
 print(Eout.adagbm)
+print("Matriz de confusión obtenida en AdaBoost - gbm:")
 print(confussion.adagbm)
 
 
@@ -572,12 +587,15 @@ Vemos que el error es bastante alto, y mucho más alto que todos los obtenidos a
 
 
 
-```{r, echo=T, warning=F}
+```{r, echo=F, warning=F}
 #sparsefactor -> true para aplicar regularización explicita norma L1 (?)
 maboost_model <- maboost(x = har.train, y = as.factor(lhar.train[,1]), sparsefactor = TRUE)  
 
 maboost.pred <- predict(maboost_model,har.test)
+
+print("Etest obtenido en maboost:")
 Eout.maboost <- sum(maboost.pred != lhar.test[,1])/length(maboost.pred)
+print("Matriz de confusión obtenida en maboost:")
 confussion.maboost <- table(maboost.pred,lhar.test[,1])
 
 ```
@@ -597,7 +615,7 @@ A continuación nos planteamos definir un modelo con RandomForest. Utilizaremos 
 
 Para comprobar que se corresponde el valor óptimo con el valor establecido teóricamente, utilizamos la función `tuneRF` que nos devuelve el mejor valor de *mtry*. 
 
-```{r, echo=F,warning=F}
+```{r, echo=F,warning=F,results=F}
     #La función tuneRF calcula a partir del valor por defecto de mtry el valor óptimo de mtry para el randomForest
     #Convertimos la etiqueta a un factor para que haga clasificación
     flhar.train <- as.factor(lhar.train[,1])
@@ -662,7 +680,9 @@ rf.pred <- predict(rf_model,har.test)
 Eout.rf <- sum(rf.pred != lhar.test[,1])/length(rf.pred)
 confussion.rf <- table(rf.pred,lhar.test[,1])
 
+print("Etest obtenido en Random Forest:")
 print(Eout.rf)
+print("Matriz de confusión obtenida en Random Forest:")
 print(confussion.rf)
   
 ```

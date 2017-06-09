@@ -150,13 +150,18 @@ Así, el cálculo del error para cada modelo propuesto consistirá en el número
 
 har.pca <- prcomp(har.train)
 
-plot(har.pca$sdev, type="l",col="blue")
+eigs <- har.pca$sdev^2
+har.pca.prop <- eigs/sum(eigs)
+har.pca.acum <- cumsum(eigs)/sum(eigs)
 
-har.pca.sum <- sum(har.pca$sdev^2)
-har.pca.acum <- 100*cumsum(har.pca$sdev^2)/har.pca.sum
-abline(b = 0, a = har.pca$sdev[which(har.pca.acum >= max(har.pca.acum[har.pca.acum <=95]))[1]], col = "red")
+plot(har.pca.prop, type="l",col="blue")
+abline(b = 0, a = har.pca.prop[which(har.pca.acum >=0.95)[1]], col = "red")
 
+plot(har.pca.prop, type="l",col="blue", ylim = c(0.00,0.01), xlim = c(99,105))
+abline(b = 0, a = har.pca.prop[which(har.pca.acum >=0.95)[1]], col = "red")
+#abline(b = 0, a = har.pca$sdev[which(har.pca.acum >= max(har.pca.acum[har.pca.acum <=95]))[1]], col = "red")
 
+#plot(har.pca)
 
 ```
 
