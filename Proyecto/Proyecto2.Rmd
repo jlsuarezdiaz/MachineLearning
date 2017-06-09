@@ -36,12 +36,12 @@ Observamos el resumen de los diez primeros atributos:
 ```{r, echo = FALSE, warning=FALSE, results= FALSE, message = FALSE}
   
     #LECTURA DE LOS DATOS
-    har.train <- read.table("./UCIHARDataset/train/X_train.txt", sep="", head = F)
-    lhar.train <- read.table("./UCIHARDataset/train/y_train.txt", sep="", head = F)
+    har.train <- read.table("./datos/train/X_train.txt", sep="", head = F)
+    lhar.train <- read.table("./datos/train/y_train.txt", sep="", head = F)
     har.data.train <- cbind(lhar.train, har.train)
     
-    har.test <- read.table("./UCIHARDataset/test/X_test.txt", sep="", head = F)
-    lhar.test <- read.table("./UCIHARDataset/test/y_test.txt", sep="", head = F)
+    har.test <- read.table("./datos/test/X_test.txt", sep="", head = F)
+    lhar.test <- read.table("./datos/test/y_test.txt", sep="", head = F)
     har.data.test <- cbind(lhar.test, har.test)
 
 
